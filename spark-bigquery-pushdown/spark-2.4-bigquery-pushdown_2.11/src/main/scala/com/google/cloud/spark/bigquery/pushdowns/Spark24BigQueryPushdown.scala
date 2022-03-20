@@ -14,4 +14,8 @@ class Spark24BigQueryPushdown extends SparkBigQueryPushdown {
   override def supportsSparkVersion(sparkVersion: String): Boolean = {
     sparkVersion.startsWith("2.4")
   }
+
+  override def getBigQueryStrategy(): BigQueryStrategy = {
+    new Spark24BigQueryStrategy
+  }
 }
