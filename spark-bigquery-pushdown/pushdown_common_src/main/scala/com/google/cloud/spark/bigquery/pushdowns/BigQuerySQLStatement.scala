@@ -36,7 +36,7 @@ class BigQuerySQLStatement(val list: List[StatementElement] = Nil) {
 
 }
 
-object EmptySnowflakeSQLStatement {
+object EmptyBigQuerySQLStatement {
   def apply(): BigQuerySQLStatement = new BigQuerySQLStatement()
 }
 
@@ -104,3 +104,13 @@ case class BooleanVariable(override val variable: Option[Boolean])
 
 case class ByteVariable(override val variable: Option[Byte])
   extends VariableElement[Byte]
+
+object ConstantStringVal {
+  def apply(l: Any): StatementElement = {
+    if (l == null || l.toString.toLowerCase == "null") {
+      ConstantString("NULL")
+    } else {
+      ConstantString(l.toString)
+    }
+  }
+}

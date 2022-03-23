@@ -4,13 +4,11 @@ import org.apache.spark.sql.Strategy
 import org.apache.spark.sql.catalyst.plans.logical.{LogicalPlan, Project, SubqueryAlias}
 import org.apache.spark.sql.execution.SparkPlan
 
-class BigQueryStrategy(queryBuilder: QueryBuilder) extends Strategy {
-  def cleanUpLogicalPlan(plan: LogicalPlan): LogicalPlan = {
-    plan.transform({
-      case Project(Nil, child) => child
-      case SubqueryAlias(_, child) => child
-    })
-  }
+class BigQueryStrategy extends Strategy {
+  /** This iterator automatically increments every time it is used,
+   * and is for aliasing subqueries.
+   */
+  private final val alias = Iterator.from(0).map(n => s"SUBQUERY_$n")
 
   override def apply(plan: LogicalPlan): Seq[SparkPlan] = {
     val cleanedPlan = cleanUpLogicalPlan(plan)
@@ -21,5 +19,12 @@ class BigQueryStrategy(queryBuilder: QueryBuilder) extends Strategy {
 
 
     BigQueryPlan(output, rdd)
+  }
+
+  def cleanUpLogicalPlan(plan: LogicalPlan): LogicalPlan = {
+    plan.transform({
+      case Project(Nil, child) => child
+      case SubqueryAlias(_, child) => child
+    })
   }
 }

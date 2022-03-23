@@ -15,4 +15,20 @@ object SparkBigQueryPushdownUtil {
     session.experimental.extraStrategies = session.experimental.extraStrategies
       .filterNot(strategy => strategy.isInstanceOf[BigQueryStrategy])
   }
+
+  def blockStatement(stmt: BigQuerySQLStatement): BigQuerySQLStatement =
+    ConstantString("(") + stmt + ")"
+
+  def blockStatement(stmt: BigQuerySQLStatement, alias: String, isSourceQuery: Boolean = false): BigQuerySQLStatement =
+    if (isSourceQuery) stmt + "AS" + ConstantString(alias.toUpperCase).toStatement
+    else blockStatement(stmt) + "AS" + ConstantString(alias.toUpperCase).toStatement
+
+  def mkStatement(seq: Seq[BigQuerySQLStatement], delimiter: String): BigQuerySQLStatement =
+    mkStatement(seq, ConstantString(delimiter) !)
+
+  def mkStatement(seq: Seq[BigQuerySQLStatement], delimiter: BigQuerySQLStatement): BigQuerySQLStatement =
+    seq.foldLeft(EmptyBigQuerySQLStatement()) {
+      case (left, stmt) =>
+        if (left.isEmpty) stmt else left + delimiter + stmt
+    }
 }
