@@ -1,21 +1,25 @@
 package com.google.cloud.spark.bigquery.pushdowns
 
-import com.google.cloud.spark.bigquery.pushdowns.SparkBigQueryPushdownUtil.{blockStatement, mkStatement}
+import com.google.cloud.spark.bigquery.pushdowns.SparkBigQueryPushdownUtil.{addAttributeStatement, blockStatement, mkStatement}
 import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.expressions.aggregate._
 import org.apache.spark.sql.types.StringType
 import org.apache.spark.unsafe.types.UTF8String
 
-class ExpressionConverter {
+/**
+ * Interface to convert Spark expressions into BigQuery SQL
+ */
+trait ExpressionConverter {
   def convertStatement(expression: Expression, fields: Seq[Attribute]): BigQuerySQLStatement = {
     convertAggregateExpressions(expression, fields)
       .orElse(convertBasicExpressions(expression, fields))
+      .orElse(convertBooleanExpressions(expression, fields))
+      // TODO Change to BigQueryPushdownException
       .getOrElse(throw new UnsupportedOperationException("Pushdown unsupported"))
   }
 
-  private[querygeneration] final def convertStatements(fields: Seq[Attribute], expressions: Expression*): BigQuerySQLStatement =
+  def convertStatements(fields: Seq[Attribute], expressions: Expression*): BigQuerySQLStatement =
     mkStatement(expressions.map(convertStatement(_, fields)), ",")
-
 
   def convertAggregateExpressions(expression: Expression, fields: Seq[Attribute]): Option[BigQuerySQLStatement] = {
     expression match {
