@@ -1,7 +1,10 @@
 package com.google.cloud.spark.bigquery.pushdowns
 
-import com.google.cloud.spark.bigquery.pushdowns.SparkBigQueryPushdownUtil.{blockStatement, mkStatement}
+import com.google.cloud.bigquery.connector.common.BigQueryConnectorException
+import com.google.cloud.spark.bigquery.pushdowns.SparkBigQueryPushdownUtil.{blockStatement, mkStatement, renameColumns}
 import org.apache.spark.sql.catalyst.expressions.{Alias, Attribute, AttributeReference, Cast, Expression, NamedExpression}
+
+import scala.language.postfixOps
 
 abstract class BigQuerySQLQuery(
    expressionConverter: ExpressionConverter,
@@ -51,7 +54,7 @@ abstract class BigQuerySQLQuery(
     outputAttributes.getOrElse(
       processedProjections.map(p => p.map(_.toAttribute)).getOrElse {
         if (children.isEmpty) {
-          throw new BigQueryPushdownException(
+          throw new BigQueryConnectorException.PushdownUnsupportedException(
             "Query output attributes must not be empty when it has no children."
           )
         } else {
@@ -90,6 +93,10 @@ abstract class BigQuerySQLQuery(
     } else {
       stmt
     }
+  }
+
+  def getOutput: Seq[Attribute] = {
+    output.map { col => Alias(Cast(col, col.dataType), col.name)(col.exprId, Seq.empty[String], Some(col.metadata)) }.map(_.toAttribute)
   }
 
   def expressionToStatement(expr: Expression): BigQuerySQLStatement =
@@ -171,4 +178,37 @@ case class AggregateQuery(
     } else {
       ConstantString("LIMIT 1").toStatement
     }
+}
+
+/** The query for Sort and Limit operations.
+ *
+ * @constructor
+ * @param limit   Limit expression.
+ * @param orderBy Order By expressions.
+ * @param child   The child node.
+ * @param alias   Query alias.
+ */
+case class SortLimitQuery(
+  expressionConverter: ExpressionConverter,
+  limit: Option[Expression],
+  orderBy: Seq[Expression],
+  child: BigQuerySQLQuery,
+  alias: String)
+  extends BigQuerySQLQuery(expressionConverter, alias, children = Seq(child)) {
+
+  override val suffixStatement: BigQuerySQLStatement = {
+    val statementFirstPart =
+      if (orderBy.nonEmpty) {
+        ConstantString("ORDER BY") + mkStatement(
+          orderBy.map(expressionToStatement),
+          ","
+        )
+      } else {
+        EmptyBigQuerySQLStatement()
+      }
+
+    statementFirstPart + limit
+      .map(ConstantString("LIMIT") + expressionToStatement(_))
+      .getOrElse(EmptyBigQuerySQLStatement())
+  }
 }

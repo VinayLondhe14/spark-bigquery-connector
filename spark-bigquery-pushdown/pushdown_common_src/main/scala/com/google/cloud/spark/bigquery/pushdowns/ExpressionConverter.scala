@@ -6,6 +6,8 @@ import org.apache.spark.sql.catalyst.expressions.aggregate._
 import org.apache.spark.sql.types.StringType
 import org.apache.spark.unsafe.types.UTF8String
 
+import scala.language.postfixOps
+
 /**
  * Interface to convert Spark expressions into BigQuery SQL
  */

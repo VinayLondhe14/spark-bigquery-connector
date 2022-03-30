@@ -1,7 +1,8 @@
 package com.google.cloud.spark.bigquery.pushdowns
 
 import org.apache.spark.sql.SparkSession
-import org.apache.spark.sql.catalyst.expressions.Attribute
+import org.apache.spark.sql.catalyst.expressions.{Alias, Attribute, Expression, NamedExpression}
+import org.apache.spark.sql.types.MetadataBuilder
 
 object SparkBigQueryPushdownUtil {
   def enableBigQueryStrategy(session: SparkSession, bigQueryStrategy: BigQueryStrategy): Unit = {
@@ -49,5 +50,22 @@ object SparkBigQueryPushdownUtil {
       else alias.map(a => a.toUpperCase).mkString(".") + "."
 
     str + name.toUpperCase
+  }
+
+  def renameColumns(origOutput: Seq[NamedExpression], alias: String): Seq[NamedExpression] = {
+    val col_names = Iterator.from(0).map(n => s"COL_$n")
+
+    origOutput.map { expr =>
+      val metadata = expr.metadata
+
+      val altName = s"""${alias}_${col_names.next()}"""
+
+      expr match {
+        case a@Alias(child: Expression, name: String) =>
+          Alias(child, altName)(a.exprId, Seq.empty[String], Some(metadata))
+        case _ =>
+          Alias(expr, altName)(expr.exprId, Seq.empty[String], Some(metadata))
+      }
+    }
   }
 }
