@@ -9,7 +9,7 @@ trait SparkBigQueryPushdown {
 
   def disable(session: SparkSession): Unit
 
-  def getBigQueryStrategy: BigQueryStrategy
+  def getBigQueryStrategy(expressionConverter: ExpressionConverter): BigQueryStrategy
 
   def getExpressionConverter: ExpressionConverter
 }

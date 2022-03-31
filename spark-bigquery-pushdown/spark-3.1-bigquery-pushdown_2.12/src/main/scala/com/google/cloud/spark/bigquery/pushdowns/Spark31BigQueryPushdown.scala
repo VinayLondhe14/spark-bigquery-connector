@@ -15,8 +15,8 @@ class Spark31BigQueryPushdown extends SparkBigQueryPushdown {
     sparkVersion.startsWith("3.1")
   }
 
-  override def getBigQueryStrategy: BigQueryStrategy = {
-    new Spark31BigQueryStrategy
+  override def getBigQueryStrategy(expressionConverter: ExpressionConverter): BigQueryStrategy = {
+    new Spark31BigQueryStrategy(expressionConverter)
   }
 
   override def getExpressionConverter: ExpressionConverter = {

@@ -90,10 +90,11 @@ class BigQueryStrategy(expressionConverter: ExpressionConverter) extends Strateg
   private def generateSparkPlan(treeRoot: BigQuerySQLQuery): SparkPlan = {
     try {
       val bigQuerySqlStatement = treeRoot.getStatement()
-      val rdd = queryBuilder.getRelation.buildRDDFromSql(bigQuerySqlStatement)
-
-      val output = treeRoot.getOutput
-      BigQueryPlan(output, rdd)
+//      val rdd = queryBuilder.getRelation.buildRDDFromSql(bigQuerySqlStatement)
+//
+//      val output = treeRoot.getOutput
+//      BigQueryPlan(output, rdd)
+      null
     } catch {
       case e: Exception =>
         logWarning("Query pushdown failed: ", e)
