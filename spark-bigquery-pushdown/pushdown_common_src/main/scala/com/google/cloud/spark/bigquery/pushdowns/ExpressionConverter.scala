@@ -1,9 +1,10 @@
 package com.google.cloud.spark.bigquery.pushdowns
 
+import com.google.cloud.bigquery.connector.common.BigQueryConnectorException
 import com.google.cloud.spark.bigquery.pushdowns.SparkBigQueryPushdownUtil.{addAttributeStatement, blockStatement, mkStatement}
 import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.expressions.aggregate._
-import org.apache.spark.sql.types.StringType
+import org.apache.spark.sql.types.{BinaryType, DataType, DateType, DecimalType, DoubleType, FloatType, IntegerType, LongType, StringType, TimestampType}
 import org.apache.spark.unsafe.types.UTF8String
 
 import scala.language.postfixOps
@@ -16,8 +17,8 @@ trait ExpressionConverter {
     convertAggregateExpressions(expression, fields)
       .orElse(convertBasicExpressions(expression, fields))
       .orElse(convertBooleanExpressions(expression, fields))
-      // TODO Change to BigQueryPushdownException
-      .getOrElse(throw new UnsupportedOperationException("Pushdown unsupported"))
+      .orElse(convertMiscExpressions(expression, fields))
+      .getOrElse(throw new BigQueryConnectorException.PushdownUnsupportedException((s"Pushdown unsupported for ${expression.prettyName}")))
   }
 
   def convertStatements(fields: Seq[Attribute], expressions: Expression*): BigQuerySQLStatement =
@@ -137,4 +138,50 @@ trait ExpressionConverter {
       case _ => null
     })
   }
+
+  def convertMiscExpressions(expression: Expression, fields: Seq[Attribute]): Option[BigQuerySQLStatement] = {
+    Option(expression match {
+      case Alias(child: Expression, name: String) =>
+        blockStatement(convertStatement(child, fields), name)
+      case Cast(child, t, _) =>
+        getCastType(t) match {
+          case Some(cast) =>
+
+            /** For known unsupported data conversion, raise exception to break the pushdown process.
+             * For example, BigQuery doesn't support to convert DATE/TIMESTAMP to NUMBER
+             */
+            (child.dataType, t) match {
+              case (_: DateType | _: TimestampType,
+              _: IntegerType | _: LongType | _: FloatType | _: DoubleType | _: DecimalType) => {
+                throw new BigQueryConnectorException.PushdownUnsupportedException(
+                  "pushdown failed for unsupported conversion")
+              }
+              case _ =>
+            }
+
+            ConstantString("CAST") +
+              blockStatement(convertStatement(child, fields) + "AS" + cast)
+          case _ => convertStatement(child, fields)
+        }
+
+      case _ => null
+    })
+  }
+
+  /** Attempts a best effort conversion from a SparkType
+   * to a BigQuery type to be used in a Cast.
+   */
+  final def getCastType(t: DataType): Option[String] =
+    Option(t match {
+      case StringType => "STRING"
+      case BinaryType => "BINARY"
+      case DateType => "DATE"
+      case TimestampType => "TIMESTAMP"
+      case d: DecimalType =>
+        "DECIMAL(" + d.precision + ", " + d.scale + ")"
+      case IntegerType | LongType => "NUMBER"
+      case FloatType => "FLOAT"
+      case DoubleType => "DOUBLE"
+      case _ => null
+    })
 }

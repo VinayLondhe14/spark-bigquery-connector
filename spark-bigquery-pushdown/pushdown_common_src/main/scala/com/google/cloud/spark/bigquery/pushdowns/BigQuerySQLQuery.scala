@@ -8,13 +8,13 @@ import scala.language.postfixOps
 
 abstract class BigQuerySQLQuery(
    expressionConverter: ExpressionConverter,
+   expressionFactory: ExpressionFactory,
    alias: String,
    children: Seq[BigQuerySQLQuery] = Seq.empty,
    projections: Option[Seq[NamedExpression]] = None,
-   outputAttributes: Option[Seq[Attribute]] = None
+   outputAttributes: Option[Seq[Attribute]] = None,
+   conjunctionStatement: BigQuerySQLStatement = EmptyBigQuerySQLStatement()
  ) {
-
-  val conjunctionStatement: BigQuerySQLStatement = EmptyBigQuerySQLStatement()
 
   val sourceStatement: BigQuerySQLStatement =
     if (children.nonEmpty) {
@@ -48,13 +48,13 @@ abstract class BigQuerySQLQuery(
             }
         )
     )
-    .map(p => renameColumns(p, alias))
+    .map(p => renameColumns(expressionFactory, p, alias))
 
   val output: Seq[Attribute] = {
     outputAttributes.getOrElse(
       processedProjections.map(p => p.map(_.toAttribute)).getOrElse {
         if (children.isEmpty) {
-          throw new BigQueryConnectorException.PushdownUnsupportedException(
+          throw new BigQueryConnectorException.PushdownException(
             "Query output attributes must not be empty when it has no children."
           )
         } else {
@@ -96,7 +96,7 @@ abstract class BigQuerySQLQuery(
   }
 
   def getOutput: Seq[Attribute] = {
-    output.map { col => Alias(Cast(col, col.dataType), col.name)(col.exprId, Seq.empty[String], Some(col.metadata)) }.map(_.toAttribute)
+    output.map { col => expressionFactory.createAlias(Cast(col, col.dataType), col.name, col.exprId, Seq.empty[String], Some(col.metadata)) }.map(_.toAttribute)
   }
 
   def expressionToStatement(expr: Expression): BigQuerySQLStatement =
@@ -108,16 +108,17 @@ abstract class BigQuerySQLQuery(
  * @constructor
  * @param tableName   The BigQuery table to be queried
  * @param refColumns Columns used to override the output generation for the QueryHelper.
- *                   These are the columns resolved by SnowflakeRelation.
+ *                   These are the columns resolved by DirectBigQueryRelation.
  * @param alias      Query alias.
  */
-case class SourceQuery(expressionConverter: ExpressionConverter,
-                       tableName: String,
-                       refColumns: Seq[Attribute],
-                       alias: String)
-  extends BigQuerySQLQuery(expressionConverter, alias, outputAttributes = Some(refColumns)) {
-
-  override val conjunctionStatement: BigQuerySQLStatement = blockStatement(ConstantString("`" + tableName + "`").toStatement, "bq_connector_query_alias", isSourceQuery = true)
+case class SourceQuery(
+  expressionConverter: ExpressionConverter,
+  expressionFactory: ExpressionFactory,
+  tableName: String,
+  refColumns: Seq[Attribute],
+  alias: String)
+  extends BigQuerySQLQuery(expressionConverter, expressionFactory, alias, outputAttributes = Some(refColumns),
+    conjunctionStatement = blockStatement(ConstantString("`" + tableName + "`").toStatement, "bq_connector_query_alias", isSourceQuery = true)) {
 }
 
 /** The query for a filter operation.
@@ -129,10 +130,11 @@ case class SourceQuery(expressionConverter: ExpressionConverter,
  */
 case class FilterQuery(
    expressionConverter: ExpressionConverter,
+   expressionFactory: ExpressionFactory,
    conditions: Seq[Expression],
    child: BigQuerySQLQuery,
    alias: String
-) extends BigQuerySQLQuery(expressionConverter, alias, children = Seq(child)) {
+) extends BigQuerySQLQuery(expressionConverter, expressionFactory, alias, children = Seq(child)) {
 
   override val suffixStatement: BigQuerySQLStatement =
     ConstantString("WHERE") + mkStatement(
@@ -150,10 +152,11 @@ case class FilterQuery(
  */
 case class ProjectQuery(
   expressionConverter: ExpressionConverter,
+  expressionFactory: ExpressionFactory,
   projectionColumns: Seq[NamedExpression],
   child: BigQuerySQLQuery,
   alias: String
-) extends BigQuerySQLQuery(expressionConverter, alias, children = Seq(child), projections = Some(projectionColumns)) {}
+) extends BigQuerySQLQuery(expressionConverter, expressionFactory, alias, children = Seq(child), projections = Some(projectionColumns)) {}
 
 /** The query for a aggregation operation.
  *
@@ -165,11 +168,12 @@ case class ProjectQuery(
  */
 case class AggregateQuery(
   expressionConverter: ExpressionConverter,
+  expressionFactory: ExpressionFactory,
   projectionColumns: Seq[NamedExpression],
   groups: Seq[Expression],
   child: BigQuerySQLQuery,
   alias: String
-) extends BigQuerySQLQuery(expressionConverter, alias, children = Seq(child), projections = if (projectionColumns.isEmpty) None else Some(projectionColumns)) {
+) extends BigQuerySQLQuery(expressionConverter, expressionFactory, alias, children = Seq(child), projections = if (projectionColumns.isEmpty) None else Some(projectionColumns)) {
 
   override val suffixStatement: BigQuerySQLStatement =
     if (groups.nonEmpty) {
@@ -190,11 +194,12 @@ case class AggregateQuery(
  */
 case class SortLimitQuery(
   expressionConverter: ExpressionConverter,
+  expressionFactory: ExpressionFactory,
   limit: Option[Expression],
   orderBy: Seq[Expression],
   child: BigQuerySQLQuery,
   alias: String)
-  extends BigQuerySQLQuery(expressionConverter, alias, children = Seq(child)) {
+  extends BigQuerySQLQuery(expressionConverter, expressionFactory, alias, children = Seq(child)) {
 
   override val suffixStatement: BigQuerySQLStatement = {
     val statementFirstPart =

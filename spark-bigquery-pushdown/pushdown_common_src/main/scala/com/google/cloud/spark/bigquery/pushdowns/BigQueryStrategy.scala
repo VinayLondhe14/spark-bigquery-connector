@@ -3,16 +3,19 @@ package com.google.cloud.spark.bigquery.pushdowns
 import com.google.cloud.bigquery.connector.common.BigQueryConnectorException
 import com.google.cloud.spark.bigquery.direct.DirectBigQueryRelation
 import org.apache.spark.internal.Logging
+import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Strategy
+import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.plans.logical.{Aggregate, Filter, GlobalLimit, Limit, LocalLimit, LogicalPlan, Project, ReturnAnswer, Sort, SubqueryAlias, UnaryNode, Window}
 import org.apache.spark.sql.execution.SparkPlan
 import org.apache.spark.sql.execution.datasources.LogicalRelation
 
-class BigQueryStrategy(expressionConverter: ExpressionConverter) extends Strategy with Logging {
+class BigQueryStrategy(expressionConverter: ExpressionConverter, expressionFactory: ExpressionFactory) extends Strategy with Logging {
   /** This iterator automatically increments every time it is used,
    * and is for aliasing subqueries.
    */
   private final val alias = Iterator.from(0).map(n => s"SUBQUERY_$n")
+  protected var directBigQueryRelation: Option[DirectBigQueryRelation] = None
 
   override def apply(plan: LogicalPlan): Seq[SparkPlan] = {
     val cleanedPlan = cleanUpLogicalPlan(plan)
@@ -42,7 +45,7 @@ class BigQueryStrategy(expressionConverter: ExpressionConverter) extends Strateg
       generateQueries(plan).get
     } catch {
       case e: Exception =>
-        logWarning("Query pushdown failed: ", e)
+        logInfo("Query pushdown failed: ", e)
         null
     }
   }
@@ -50,31 +53,32 @@ class BigQueryStrategy(expressionConverter: ExpressionConverter) extends Strateg
   private def generateQueries(plan: LogicalPlan): Option[BigQuerySQLQuery] = {
     plan match {
       case l@LogicalRelation(bqRelation: DirectBigQueryRelation, _, _, _) =>
-        Some(SourceQuery(expressionConverter, bqRelation.tableName, l.output, alias.next))
+        directBigQueryRelation = Some(bqRelation)
+        Some(SourceQuery(expressionConverter, expressionFactory, bqRelation.tableName, l.output, alias.next))
 
       case UnaryOp(child) =>
         generateQueries(child) map { subQuery =>
           plan match {
             case Filter(condition, _) =>
-              FilterQuery(expressionConverter, Seq(condition), subQuery, alias.next)
+              FilterQuery(expressionConverter, expressionFactory, Seq(condition), subQuery, alias.next)
 
             case Project(fields, _) =>
-              ProjectQuery(expressionConverter, fields, subQuery, alias.next)
+              ProjectQuery(expressionConverter, expressionFactory, fields, subQuery, alias.next)
 
             case Aggregate(groups, fields, _) =>
-              AggregateQuery(expressionConverter, fields, groups, subQuery, alias.next)
+              AggregateQuery(expressionConverter, expressionFactory, fields, groups, subQuery, alias.next)
 
             case Limit(limitExpr, Sort(orderExpr, true, _)) =>
-              SortLimitQuery(expressionConverter, Some(limitExpr), orderExpr, subQuery, alias.next)
+              SortLimitQuery(expressionConverter, expressionFactory, Some(limitExpr), orderExpr, subQuery, alias.next)
 
             case Limit(limitExpr, _) =>
-              SortLimitQuery(expressionConverter, Some(limitExpr), Seq.empty, subQuery, alias.next)
+              SortLimitQuery(expressionConverter, expressionFactory, Some(limitExpr), Seq.empty, subQuery, alias.next)
 
             case Sort(orderExpr, true, Limit(limitExpr, _)) =>
-              SortLimitQuery(expressionConverter, Some(limitExpr), orderExpr, subQuery, alias.next)
+              SortLimitQuery(expressionConverter, expressionFactory, Some(limitExpr), orderExpr, subQuery, alias.next)
 
             case Sort(orderExpr, true, _) =>
-              SortLimitQuery(expressionConverter, None, orderExpr, subQuery, alias.next)
+              SortLimitQuery(expressionConverter, expressionFactory, None, orderExpr, subQuery, alias.next)
 
             case _ => subQuery
           }
@@ -89,17 +93,22 @@ class BigQueryStrategy(expressionConverter: ExpressionConverter) extends Strateg
 
   private def generateSparkPlan(treeRoot: BigQuerySQLQuery): SparkPlan = {
     try {
-      val bigQuerySqlStatement = treeRoot.getStatement()
-//      val rdd = queryBuilder.getRelation.buildRDDFromSql(bigQuerySqlStatement)
-//
-//      val output = treeRoot.getOutput
-//      BigQueryPlan(output, rdd)
-      null
+      BigQueryPlan(treeRoot.getOutput, getRdd(treeRoot))
     } catch {
       case e: Exception =>
-        logWarning("Query pushdown failed: ", e)
+        logInfo("Query pushdown failed: ", e)
         null
     }
+  }
+
+  private def getRdd(treeRoot: BigQuerySQLQuery): RDD[InternalRow] = {
+    if (directBigQueryRelation == null) {
+      throw new BigQueryConnectorException.PushdownException(
+        "Query output attributes must not be empty when it has no children."
+      )
+    }
+
+    directBigQueryRelation.get.buildScanFromSQL(treeRoot.getStatement().toString)
   }
 }
 

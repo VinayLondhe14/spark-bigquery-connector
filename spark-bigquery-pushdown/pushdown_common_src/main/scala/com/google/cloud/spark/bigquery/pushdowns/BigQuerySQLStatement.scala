@@ -11,7 +11,7 @@ class BigQuerySQLStatement(val list: List[StatementElement] = Nil) {
 
   def isEmpty: Boolean = list.isEmpty
 
-  def statementString: String = {
+  override def toString: String = {
     val buffer = new StringBuilder
     val sql = list.reverse
 
@@ -25,15 +25,11 @@ class BigQuerySQLStatement(val list: List[StatementElement] = Nil) {
         if (buffer.nonEmpty && buffer.last != ' ') {
           buffer.append(" ")
         }
-        buffer.append(x.value)
-        buffer.append("(")
-        buffer.append(x.variable)
-        buffer.append(")")
+        buffer.append(x.sql)
     }
 
     buffer.toString()
   }
-
 }
 
 object EmptyBigQuerySQLStatement {

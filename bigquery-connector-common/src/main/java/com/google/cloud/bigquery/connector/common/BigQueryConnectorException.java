@@ -57,6 +57,17 @@ public class BigQueryConnectorException extends RuntimeException {
   }
 
   // inner child class
+  public static class PushdownException extends BigQueryConnectorException {
+
+    public PushdownException(String message) {
+      super(UNKNOWN, message);
+    }
+
+    public PushdownException(String message, Throwable t) {
+      super(UNKNOWN, message, t);
+    }
+  }
+
   public static class PushdownUnsupportedException extends BigQueryConnectorException {
 
     public PushdownUnsupportedException(String message) {
