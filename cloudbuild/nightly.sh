@@ -29,9 +29,9 @@ readonly BUCKET="spark-lib-daily-snapshots"
 cd /workspace
 
 # Build
-$MVN install -DskipTests -Pdsv1_2.12,dsv2
+$MVN install -DskipTests -Pdsv1_2.11,dsv1_2.12,dsv2
 #coverage report
-$MVN test jacoco:report jacoco:report-aggregate -Pcoverage,dsv1_2.12,dsv2
+$MVN test jacoco:report jacoco:report-aggregate -Pcoverage,dsv1_2.11,dsv1_2.12,dsv2
 
 # Upload daily artifacts to the snapshot bucket
 gsutil cp \
