@@ -7,13 +7,12 @@ steps:
 # 2. Fetch maven and dependencies
   - name: 'gcr.io/$PROJECT_ID/dataproc-spark-bigquery-connector-nightly'
     id: 'maven-build'
-    waitFor: ['docker-build']
     entrypoint: 'bash'
     args: ['/workspace/cloudbuild/nightly.sh']
-    artifacts:
-      objects:
-        location: 'gs://spark-lib-daily-snapshots/'
-        paths: ['/workspace/*.jar']
+  artifacts:
+    objects:
+      location: 'gs://spark-lib-daily-snapshots/'
+      paths: [ '/workspace/*.jar' ]
     env:
       - 'GOOGLE_CLOUD_PROJECT=${_GOOGLE_CLOUD_PROJECT}'
       - 'TEMPORARY_GCS_BUCKET=${_TEMPORARY_GCS_BUCKET}'
