@@ -33,6 +33,8 @@ $MVN install -DskipTests -Pdsv1_2.11,dsv1_2.12,dsv2
 #coverage report
 $MVN test jacoco:report jacoco:report-aggregate -Pcoverage,dsv1_2.11,dsv1_2.12,dsv2
 
+gsutil config
+
 # Upload daily artifacts to the snapshot bucket
 gsutil cp \
   "spark-bigquery-dsv1/spark-bigquery-with-dependencies_2.11/target/spark-bigquery-with-dependencies_2.11-${REVISION}.jar" \
