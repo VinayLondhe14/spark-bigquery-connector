@@ -15,6 +15,10 @@ steps:
       - 'ACCEPTANCE_TEST_BUCKET=${_ACCEPTANCE_TEST_BUCKET}'
       - 'SERVERLESS_NETWORK_URI=${_SERVERLESS_NETWORK_URI}'
       - 'CODECOV_TOKEN=${_CODECOV_TOKEN}'
+artifacts:
+  objects:
+    location: 'gs://spark-lib-daily-snapshots/'
+    paths: [ '/workspace/*.jar' ]
 
 # Tests take around 20 mins in general.
 timeout: 3600s
