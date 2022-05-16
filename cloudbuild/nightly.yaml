@@ -18,7 +18,7 @@ steps:
 artifacts:
   objects:
     location: 'gs://spark-lib-daily-snapshots/'
-    paths: [ '/workspace/*.jar' ]
+    paths: [ '*.jar' ]
 
 # Tests take around 20 mins in general.
 timeout: 3600s
