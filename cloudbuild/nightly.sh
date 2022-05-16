@@ -24,7 +24,6 @@ fi
 readonly DATE="$(date +%Y%m%d)"
 readonly REVISION="0.0.${DATE}"
 readonly MVN="./mvnw -B -e -s /workspace/cloudbuild/gcp-settings.xml -Dmaven.repo.local=/workspace/.repository -Drevision=${REVISION}"
-readonly BUCKET="spark-lib-daily-snapshots"
 
 cd /workspace
 
@@ -32,24 +31,5 @@ cd /workspace
 $MVN install -DskipTests -Pdsv1_2.11,dsv1_2.12,dsv2
 #coverage report
 $MVN test jacoco:report jacoco:report-aggregate -Pcoverage,dsv1_2.11,dsv1_2.12,dsv2
-
-gsutil config
-
-# Upload daily artifacts to the snapshot bucket
-gsutil cp \
-  "spark-bigquery-dsv1/spark-bigquery-with-dependencies_2.11/target/spark-bigquery-with-dependencies_2.11-${REVISION}.jar" \
-  "spark-bigquery-dsv1/spark-bigquery-with-dependencies_2.12/target/spark-bigquery-with-dependencies_2.12-${REVISION}.jar" \
-  "spark-bigquery-dsv2/spark-2.4-bigquery/target/spark-2.4-bigquery-${REVISION}-preview.jar" \
-  "gs://${BUCKET}/"
-# Marking daily snapshot
-gsutil cp \
-  "gs://${BUCKET}/spark-bigquery-with-dependencies_2.11-${REVISION}.jar" \
-  "gs://${BUCKET}/spark-bigquery-with-dependencies_2.11-daily-snapshot.jar"
-gsutil cp \
-  "gs://${BUCKET}/spark-bigquery-with-dependencies_2.12-${REVISION}.jar" \
-  "gs://${BUCKET}/spark-bigquery-with-dependencies_2.12-daily-snapshot.jar"
-gsutil cp \
-  "gs://${BUCKET}/spark-2.4-bigquery-${REVISION}-preview.jar" \
-  "gs://${BUCKET}/spark-2.4-bigquery-daily-snapshot-preview.jar"
 
 
