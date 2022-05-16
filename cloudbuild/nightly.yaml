@@ -17,7 +17,7 @@ steps:
       - 'CODECOV_TOKEN=${_CODECOV_TOKEN}'
 artifacts:
   objects:
-    location: 'gs://spark-lib-daily-snapshot'
+    location: 'gs://spark-lib-daily-snapshots'
     paths: ['*']
 
 # Tests take around 20 mins in general.
