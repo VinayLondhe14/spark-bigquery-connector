@@ -39,6 +39,7 @@ trait SparkExpressionConverter {
     convertAggregateExpressions(expression, fields)
       .orElse(convertBasicExpressions(expression, fields))
       .orElse(convertBooleanExpressions(expression, fields))
+      .orElse(convertDateExpressions(expression, fields))
       .orElse(convertMiscExpressions(expression, fields))
       .getOrElse(throw new BigQueryPushdownUnsupportedException((s"Pushdown unsupported for ${expression.prettyName}")))
   }
@@ -80,12 +81,27 @@ trait SparkExpressionConverter {
         blockStatement(
           convertStatement(left, fields) + "OR" + convertStatement(right, fields)
         )
+      case BitwiseAnd(left, right) =>
+        blockStatement(
+          convertStatement(left, fields) + "&" + convertStatement(right, fields)
+        )
+      case BitwiseOr(left, right) =>
+        blockStatement(
+          convertStatement(left, fields) + "|" + convertStatement(right, fields)
+        )
+      case BitwiseXor(left, right) =>
+        blockStatement(
+          convertStatement(left, fields) + "^" + convertStatement(right, fields)
+        )
+      case BitwiseNot(child) =>
+        ConstantString("~") + blockStatement(
+          convertStatement(child, fields)
+        )
       case b: BinaryOperator =>
         blockStatement(
           convertStatement(b.left, fields) + b.symbol + convertStatement(b.right, fields)
         )
       case l: Literal =>
-        // TODO: Add DateType and TimestampType
         l.dataType match {
           case StringType =>
             if (l.value == null) {
@@ -93,6 +109,12 @@ trait SparkExpressionConverter {
             } else {
               StringVariable(Some(l.toString())).toStatement
             }
+          case DateType =>
+            ConstantString("DATE_ADD(DATE \"1970-01-01\", INTERVAL ") + IntVariable(
+              Option(l.value).map(_.asInstanceOf[Int])
+            ) + " DAY)" // s"DATE_ADD(DATE "1970-01-01", INTERVAL ${l.value} DAY)
+          case TimestampType =>
+            ConstantString("TIMESTAMP_MICROS(") + l.toString() + " )"
           case _ =>
             l.value match {
               case v: Int => IntVariable(Some(v)).toStatement
@@ -105,6 +127,57 @@ trait SparkExpressionConverter {
               case _ => ConstantStringVal(l.value).toStatement
             }
         }
+
+      case _ => null
+    })
+  }
+
+  def convertDateExpressions(expression: Expression, fields: Seq[Attribute]): Option[BigQuerySQLStatement] = {
+    Option(expression match {
+      case DateAdd(startDate, days) =>
+        ConstantString(expression.prettyName.toUpperCase) +
+          blockStatement(
+            ConstantString("DATE ") +
+              convertStatement(startDate, fields) + ", INTERVAL " +
+              convertStatement(days, fields) + "DAY"
+          )
+      case DateSub(startDate, days) =>
+        ConstantString(expression.prettyName.toUpperCase) +
+          blockStatement(
+            ConstantString("DATE ") +
+              convertStatement(startDate, fields) + ", INTERVAL " +
+              convertStatement(days, fields) + "DAY"
+          )
+      case Month(child) =>
+        ConstantString("EXTRACT") +
+          blockStatement(
+            ConstantString(expression.prettyName.toUpperCase) + " FROM DATE " +
+              convertStatement(child, fields)
+          )
+      case Quarter(child) =>
+        ConstantString("EXTRACT") +
+          blockStatement(
+            ConstantString(expression.prettyName.toUpperCase) + " FROM DATE " +
+              convertStatement(child, fields)
+          )
+      case Year(child) =>
+        ConstantString("EXTRACT") +
+          blockStatement(
+            ConstantString(expression.prettyName.toUpperCase) + " FROM DATE " +
+              convertStatement(child, fields)
+          )
+      case TruncDate(date, format) =>
+        ConstantString("DATE_TRUNC") +
+          blockStatement(
+            ConstantString("DATE ") + convertStatement(date, fields) + "," +
+              convertStatement(format, fields)
+          )
+      case TruncTimestamp(format, timestamp, timeZoneId) =>
+        ConstantString("TIMESTAMP_TRUNC") +
+          blockStatement(
+            ConstantString("TIMESTAMP ") + convertStatement(timestamp, fields) + "," +
+              convertStatement(format, fields) + (if (timeZoneId.isDefined) s",${timeZoneId.get}" else "")
+          )
 
       case _ => null
     })
