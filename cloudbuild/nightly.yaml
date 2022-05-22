@@ -20,7 +20,7 @@ steps:
     args:
     - '-c'
     - |
-        bucket="gs://spark-lib-nightly-snapshots"
+        bucket="spark-lib-nightly-snapshots"
         connector_revision="$(cat /workspace/revision.txt)"
         
         gsutil cp "/workspace/.repository/com/google/cloud/spark/spark-bigquery-with-dependencies_2.11/$connector_revision/spark-bigquery-with-dependencies_2.11-$connector_revision.jar" "gs://$bucket"
