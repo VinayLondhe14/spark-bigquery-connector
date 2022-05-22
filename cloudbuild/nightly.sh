@@ -31,6 +31,12 @@ cd /workspace
 $MVN install -DskipTests -Pdsv1_2.11,dsv1_2.12,dsv2
 #coverage report
 $MVN test jacoco:report jacoco:report-aggregate -Pcoverage,dsv1_2.11,dsv1_2.12,dsv2
+# Run integration tests
+$MVN failsafe:integration-test failsafe:verify jacoco:report jacoco:report-aggregate -Pcoverage,integration,dsv1_2.11,dsv1_2.12,dsv2
+# Run acceptance tests
+$MVN failsafe:integration-test failsafe:verify jacoco:report jacoco:report-aggregate -Pcoverage,acceptance,dsv1_2.11,dsv1_2.12,dsv2
+# Upload test coverage report to Codecov
+bash <(curl -s https://codecov.io/bash) -K -F "nightly"
 
 echo "${REVISION}" > /workspace/revision.txt
 
