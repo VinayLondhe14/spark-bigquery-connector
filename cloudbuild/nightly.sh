@@ -22,14 +22,14 @@ if [ -z "${CODECOV_TOKEN}" ]; then
 fi
 
 readonly DATE="$(date +%Y%m%d)"
-readonly REVISION="0.0.${DATE}"
+readonly REVISION=$1
 readonly MVN="./mvnw -B -e -s /workspace/cloudbuild/gcp-settings.xml -Dmaven.repo.local=/workspace/.repository -Drevision=${REVISION}"
 
 cd /workspace
 
 # Build
-$MVN install -DskipTests -Pdsv1_2.11,dsv1_2.12,dsv2
+$MVN install -DskipTests -Pdsv1_2.11
 #coverage report
-$MVN test jacoco:report jacoco:report-aggregate -Pcoverage,dsv1_2.11,dsv1_2.12,dsv2
+$MVN test jacoco:report jacoco:report-aggregate -Pcoverage,dsv1_2.11
 
 
