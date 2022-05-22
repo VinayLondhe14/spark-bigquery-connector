@@ -20,13 +20,13 @@ steps:
     args:
     - '-c'
     - |
-        REVISION="$(cat /workspace/revision.txt)"
-        gsutil cp "/workspace/.repository/com/google/cloud/spark/spark-bigquery-with-dependencies_2.11/$REVISION/spark-bigquery-with-dependencies_2.11-$REVISION.jar" gs://spark-lib-daily-snapshots
-        gsutil cp "gs://spark-lib-daily-snapshots/spark-bigquery-with-dependencies_2.11-$REVISION.jar" gs://spark-lib-daily-snapshots/spark-bigquery-with-dependencies_2.11-daily-snapshot.jar
-        gsutil cp "/workspace/.repository/com/google/cloud/spark/spark-bigquery-with-dependencies_2.12/$REVISION/spark-bigquery-with-dependencies_2.12-$REVISION.jar" gs://spark-lib-daily-snapshots
-        gsutil cp "gs://spark-lib-daily-snapshots/spark-bigquery-with-dependencies_2.12-$REVISION.jar" gs://spark-lib-daily-snapshots/spark-bigquery-with-dependencies_2.12-daily-snapshot.jar
-        gsutil cp "/workspace/.repository/com/google/cloud/spark/spark-2.4-bigquery/$REVISION-preview/spark-2.4-bigquery-$REVISION-preview.jar" gs://spark-lib-daily-snapshots
-        gsutil cp "gs://spark-lib-daily-snapshots/spark-2.4-bigquery-$REVISION-preview.jar" gs://spark-lib-daily-snapshots/spark-2.4-bigquery-daily-snapshot-preview.jar
+        revision="$(cat /workspace/revision.txt)"
+        gsutil cp "/workspace/.repository/com/google/cloud/spark/spark-bigquery-with-dependencies_2.11/$revision/spark-bigquery-with-dependencies_2.11-$revision.jar" gs://spark-lib-daily-snapshots
+        gsutil cp "gs://spark-lib-daily-snapshots/spark-bigquery-with-dependencies_2.11-$revision.jar" gs://spark-lib-daily-snapshots/spark-bigquery-with-dependencies_2.11-daily-snapshot.jar
+        gsutil cp "/workspace/.repository/com/google/cloud/spark/spark-bigquery-with-dependencies_2.12/$revision/spark-bigquery-with-dependencies_2.12-$revision.jar" gs://spark-lib-daily-snapshots
+        gsutil cp "gs://spark-lib-daily-snapshots/spark-bigquery-with-dependencies_2.12-$revision.jar" gs://spark-lib-daily-snapshots/spark-bigquery-with-dependencies_2.12-daily-snapshot.jar
+        gsutil cp "/workspace/.repository/com/google/cloud/spark/spark-2.4-bigquery/$revision-preview/spark-2.4-bigquery-$revision-preview.jar" gs://spark-lib-daily-snapshots
+        gsutil cp "gs://spark-lib-daily-snapshots/spark-2.4-bigquery-$revision-preview.jar" gs://spark-lib-daily-snapshots/spark-2.4-bigquery-daily-snapshot-preview.jar
         
 
 # Tests take around 20 mins in general.
