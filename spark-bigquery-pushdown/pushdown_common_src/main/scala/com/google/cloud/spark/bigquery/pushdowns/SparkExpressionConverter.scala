@@ -173,12 +173,6 @@ trait SparkExpressionConverter {
             ConstantString("DATE ") + convertStatement(date, fields) + "," +
               convertStatement(format, fields)
           )
-      case TruncTimestamp(format, timestamp, timeZoneId) =>
-        ConstantString("TIMESTAMP_TRUNC") +
-          blockStatement(
-            ConstantString("TIMESTAMP ") + convertStatement(timestamp, fields) + "," +
-              convertStatement(format, fields) + (if (timeZoneId.isDefined) s",${timeZoneId.get}" else "")
-          )
 
       case _ => null
     })
@@ -263,7 +257,6 @@ trait SparkExpressionConverter {
            _: StringLPad | _: StringRPad | _: StringTranslate |
            _: StringTrim | _: StringTrimLeft | _: StringTrimRight |
            _: Upper | _: StringInstr | _: InitCap |
-           _: Base64  | _:UnBase64 |
            _: Substring | _: SoundEx =>
         ConstantString(expression.prettyName.toUpperCase()) + blockStatement(convertStatements(fields, expression.children: _*))
       case RegExpExtract(child, Literal(pattern: UTF8String, StringType), idx) =>
