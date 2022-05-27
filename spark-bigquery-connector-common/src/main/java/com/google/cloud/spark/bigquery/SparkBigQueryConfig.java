@@ -130,7 +130,7 @@ public class SparkBigQueryConfig
   com.google.common.base.Optional<String> accessToken;
   com.google.common.base.Optional<String> filter = empty();
   com.google.common.base.Optional<StructType> schema = empty();
-  Integer maxParallelism = null;
+  Integer maxParallelism = 1;
   int defaultParallelism = 1;
   com.google.common.base.Optional<String> temporaryGcsBucket = empty();
   com.google.common.base.Optional<String> persistentGcsBucket = empty();
@@ -268,11 +268,7 @@ public class SparkBigQueryConfig
     config.accessToken = getAnyOption(globalOptions, options, "gcpAccessToken");
     config.filter = getOption(options, "filter");
     config.schema = fromJavaUtil(schema);
-    config.maxParallelism =
-        getOptionFromMultipleParams(
-                options, ImmutableList.of("maxParallelism", "parallelism"), DEFAULT_FALLBACK)
-            .transform(Integer::valueOf)
-            .orNull();
+    config.maxParallelism = 1;
     config.defaultParallelism = defaultParallelism;
     config.temporaryGcsBucket = getAnyOption(globalOptions, options, "temporaryGcsBucket");
     config.persistentGcsBucket = getAnyOption(globalOptions, options, "persistentGcsBucket");

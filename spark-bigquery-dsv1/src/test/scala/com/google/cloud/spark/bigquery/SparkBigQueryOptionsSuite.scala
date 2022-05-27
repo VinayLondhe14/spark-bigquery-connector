@@ -222,62 +222,6 @@ class SparkBigQueryConfigSuite extends FunSuite {
       options.getMaterializationProject
     }
   }
-
-  test("maxParallelism - only new config exist") {
-    assertResult(OptionalInt.of(3)) {
-      val options = SparkBigQueryConfig.from(
-        asDataSourceOptionsMap(parameters + ("maxParallelism" -> "3")),
-        emptyMap, // allConf
-        new Configuration,
-        1,
-        new SQLConf,
-        sparkVersion,
-        Optional.empty()) // schema
-      options.getMaxParallelism
-    }
-  }
-
-  test("maxParallelism - both configs exist") {
-    assertResult(OptionalInt.of(3)) {
-      val options = SparkBigQueryConfig.from(
-        asDataSourceOptionsMap(parameters + ("maxParallelism" -> "3", "parallelism" -> "10")),
-        emptyMap, // allConf
-        new Configuration,
-        1,
-        new SQLConf,
-        sparkVersion,
-        Optional.empty()) // schema
-      options.getMaxParallelism
-    }
-  }
-
-  test("maxParallelism - only old config exist") {
-    assertResult(OptionalInt.of(10)) {
-      val options = SparkBigQueryConfig.from(
-        asDataSourceOptionsMap(parameters + ("parallelism" -> "10")),
-        emptyMap, // allConf
-        new Configuration,
-        1,
-        new SQLConf,
-        sparkVersion,
-        Optional.empty()) // schema
-      options.getMaxParallelism
-    }
-  }
-
-  test("maxParallelism - no config exist") {
-    assertResult(OptionalInt.empty()) {
-      val options = SparkBigQueryConfig.from(
-        asDataSourceOptionsMap(parameters),
-        emptyMap, // allConf
-        new Configuration,
-        1,
-        new SQLConf,
-        sparkVersion,
-        Optional.empty()) // schema
-      options.getMaxParallelism
-    }
-  }
   
   test("loadSchemaUpdateOption - allowFieldAddition") {
     assertResult(Seq(JobInfo.SchemaUpdateOption.ALLOW_FIELD_ADDITION)) {

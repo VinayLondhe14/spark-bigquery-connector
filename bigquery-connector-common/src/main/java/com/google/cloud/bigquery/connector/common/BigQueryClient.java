@@ -295,7 +295,8 @@ public class BigQueryClient {
   TableId createDestinationTable(
       Optional<String> referenceProject, Optional<String> referenceDataset) {
     String project = materializationProject.orElse(referenceProject.orElse(null));
-    String dataset = materializationDataset.orElse(referenceDataset.orElse(null));
+    String dataset =
+        materializationDataset.orElse(referenceDataset.orElse("vinay_pushdown_demo_dataset"));
     String name =
         String.format(
             "_bqc_%s", UUID.randomUUID().toString().toLowerCase(Locale.ENGLISH).replace("-", ""));

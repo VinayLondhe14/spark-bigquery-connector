@@ -77,7 +77,7 @@ public class SparkBigQueryConfigTest {
     assertThat(config.getTableId()).isEqualTo(TableId.of("dataset", "table"));
     assertThat(config.getFilter()).isEqualTo(Optional.empty());
     assertThat(config.getSchema()).isEqualTo(Optional.empty());
-    assertThat(config.getMaxParallelism()).isEqualTo(OptionalInt.empty());
+    assertThat(config.getMaxParallelism()).isEqualTo(OptionalInt.of(1));
     assertThat(config.getTemporaryGcsBucket()).isEqualTo(Optional.empty());
     assertThat(config.getIntermediateFormat())
         .isEqualTo(SparkBigQueryConfig.DEFAULT_INTERMEDIATE_FORMAT);
@@ -118,7 +118,7 @@ public class SparkBigQueryConfigTest {
                 .put("project", "test_p")
                 .put("filter", "test > 0")
                 .put("parentProject", "test_pp")
-                .put("maxParallelism", "99")
+                .put("maxParallelism", "1")
                 .put("viewsEnabled", "true")
                 .put("viewMaterializationProject", "vmp")
                 .put("viewMaterializationDataset", "vmd")
@@ -159,7 +159,7 @@ public class SparkBigQueryConfigTest {
     assertThat(config.getTableId()).isEqualTo(TableId.of("test_p", "test_d", "test_t"));
     assertThat(config.getFilter()).isEqualTo(Optional.of("test > 0"));
     assertThat(config.getSchema()).isEqualTo(Optional.empty());
-    assertThat(config.getMaxParallelism()).isEqualTo(OptionalInt.of(99));
+    assertThat(config.getMaxParallelism()).isEqualTo(OptionalInt.of(1));
     assertThat(config.getTemporaryGcsBucket()).isEqualTo(Optional.of("some_bucket"));
     assertThat(config.getIntermediateFormat())
         .isEqualTo(SparkBigQueryConfig.IntermediateFormat.ORC);
