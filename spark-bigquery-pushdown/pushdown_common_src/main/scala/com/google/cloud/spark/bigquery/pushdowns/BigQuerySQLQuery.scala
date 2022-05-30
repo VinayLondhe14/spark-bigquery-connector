@@ -35,6 +35,10 @@ import org.apache.spark.sql.catalyst.expressions.{Alias, Attribute, AttributeRef
  * @param conjunctionStatement Conjunction phrase to be used in between subquery children,
  *                             or simple phrase when there are no subqueries.
  * @param fields Contains output from the left + right query for left semi and left anti joins
+ * @param visibleAttributeOverride For some query clauses we may override the
+ *                                 outputAttributes, but will need a different
+ *                                 set of resolvable attributes to be visible
+ *                                 to the parent query clause, e.g., in UnionQuery
  */
 abstract class BigQuerySQLQuery(
   expressionConverter: SparkExpressionConverter,
@@ -44,7 +48,11 @@ abstract class BigQuerySQLQuery(
   projections: Option[Seq[NamedExpression]] = None,
   outputAttributes: Option[Seq[Attribute]] = None,
   conjunctionStatement: BigQuerySQLStatement = EmptyBigQuerySQLStatement(),
-  fields: Option[Seq[Attribute]] = None) {
+  fields: Option[Seq[Attribute]] = None,
+  // For some query clauses we may override the outputAttributes, but will
+  // need a different set of resolvable attributes to be visible to the parent
+  // query clause, e.g., in UnionQuery
+  val visibleAttributeOverride: Option[Seq[Attribute]] = None) {
 
   /**
    * Creates the sql after the FROM clause by building the queries from its children.
@@ -63,19 +71,23 @@ abstract class BigQuerySQLQuery(
   val suffixStatement: BigQuerySQLStatement = EmptyBigQuerySQLStatement()
 
   /** Gets columns from the fields list if not empty or from the child query */
-  val columnSet: Seq[Attribute] = {
+  val columnSet: Seq[Attribute] =
     if (fields.isEmpty) {
       children.foldLeft(Seq.empty[Attribute])(
         (x, y) => {
-          val attrs = y.outputWithQualifier
+          val attrs =
+            if (y.visibleAttributeOverride.isEmpty) {
+              y.outputWithQualifier
+            } else {
+              y.visibleAttributeOverride.get
+            }
+
           x ++ attrs
         }
       )
     } else {
       fields.get
     }
-
-  }
 
   /**
    * Checks if we have already seen the AttributeReference before based on the exprId and
