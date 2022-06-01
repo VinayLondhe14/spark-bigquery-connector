@@ -19,6 +19,7 @@ package com.google.cloud.spark.bigquery.pushdowns
 import com.google.cloud.bigquery.connector.common.{BigQueryPushdownException, BigQueryPushdownUnsupportedException}
 import com.google.cloud.spark.bigquery.direct.BigQueryRDDFactory
 import com.google.cloud.spark.bigquery.direct.DirectBigQueryRelation
+import com.google.cloud.spark.bigquery.pushdowns.SparkBigQueryPushdownUtil.convertProjections
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.Strategy
 import org.apache.spark.sql.catalyst.plans.{FullOuter, Inner, LeftAnti, LeftOuter, LeftSemi, RightOuter}
@@ -49,11 +50,6 @@ class BigQueryStrategy(expressionConverter: SparkExpressionConverter, expression
    *         query generation was successful, None if not.
    */
   override def apply(plan: LogicalPlan): Seq[SparkPlan] = {
-    // Check if we have any unsupported nodes in the plan. If we do, we return
-    // Nil and let Spark try other strategies
-    if(hasUnsupportedNodes(plan)) {
-      return Nil
-    }
 
     try {
       generateSparkPlanFromLogicalPlan(plan)
@@ -159,6 +155,22 @@ class BigQueryStrategy(expressionConverter: SparkExpressionConverter, expression
             }
           }
         }
+
+      case UnionExtractor(children) =>
+        val queries: Seq[BigQuerySQLQuery] = children.map { child =>
+          new BigQueryStrategy(expressionConverter, expressionFactory, sparkPlanFactory).generateQueryFromPlan(child).get
+        }
+        Some(UnionQuery(expressionConverter, expressionFactory, queries, alias.next))
+
+      case Expand(projections, output, child) =>
+        val children = projections.map { p =>
+          val proj = convertProjections(p, output)
+          Project(proj, child)
+        }
+        val queries: Seq[BigQuerySQLQuery] = children.map { child =>
+          new BigQueryStrategy(expressionConverter, expressionFactory, sparkPlanFactory).generateQueryFromPlan(child).get
+        }
+        Some(UnionQuery(expressionConverter, expressionFactory, queries, alias.next, Some(output)))
 
       case _ =>
         throw new BigQueryPushdownUnsupportedException(

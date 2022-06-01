@@ -111,4 +111,13 @@ object SparkBigQueryPushdownUtil {
       }
     }
   }
+
+  def convertProjections(projections: Seq[Expression], output: Seq[Attribute]): Seq[NamedExpression] = {
+    projections zip output map { expr =>
+      expr._1 match {
+        case e: NamedExpression => e
+        case _ => Alias(expr._1, expr._2.name)(expr._2.exprId)
+      }
+    }
+  }
 }
