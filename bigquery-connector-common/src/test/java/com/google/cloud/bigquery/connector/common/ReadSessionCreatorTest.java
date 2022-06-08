@@ -58,7 +58,8 @@ public class ReadSessionCreatorTest {
     when(stub.createReadSessionCallable()).thenReturn(createReadSessionCall);
 
     creator
-        .create(TableId.of("dataset", "table"), ImmutableList.of("col1", "col2"), Optional.empty())
+        .create(
+            TableId.of("dataset", "table"), ImmutableList.of("col1", "col2"), Optional.empty(), 10)
         .getReadSession();
 
     ArgumentCaptor<CreateReadSessionRequest> requestCaptor =

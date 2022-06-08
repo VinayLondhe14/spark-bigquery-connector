@@ -122,9 +122,13 @@ public class BigQueryRDDFactory {
       ReadSessionCreator readSessionCreator,
       String[] requiredColumns,
       String filter) {
+    int maxStreamCount = options.getMaxParallelism();
     ReadSessionResponse readSessionResponse =
         readSessionCreator.create(
-            tableId, ImmutableList.copyOf(requiredColumns), BigQueryUtil.emptyIfNeeded(filter));
+            tableId,
+            ImmutableList.copyOf(requiredColumns),
+            BigQueryUtil.emptyIfNeeded(filter),
+            maxStreamCount);
     ReadSession readSession = readSessionResponse.getReadSession();
     TableInfo actualTable = readSessionResponse.getReadTableInfo();
 
@@ -140,10 +144,9 @@ public class BigQueryRDDFactory {
         BigQueryUtil.friendlyTableName(tableId),
         readSession.getName());
 
-    int maxNumPartitionsRequested = getMaxNumPartitionsRequested(actualTable.getDefinition());
     // This is spammy, but it will make it clear to users the number of partitions they got and
     // why.
-    if (maxNumPartitionsRequested != partitions.size()) {
+    if (maxStreamCount != partitions.size()) {
       log.info(
           "Requested $maxNumPartitionsRequested max partitions, but only received {} "
               + "from the BigQuery Storage API for session {}. Notice that the "
@@ -182,13 +185,5 @@ public class BigQueryRDDFactory {
       StandardTableDefinition standardTableDefinition = (StandardTableDefinition) tableDefinition;
       return standardTableDefinition.getNumBytes();
     }
-  }
-
-  private int getMaxNumPartitionsRequested(TableDefinition tableDefinition) {
-    return options
-        .getMaxParallelism()
-        .orElse(
-            Math.max(
-                Math.toIntExact(getNumBytes(tableDefinition) / DEFAULT_BYTES_PER_PARTITION), 1));
   }
 }

@@ -29,7 +29,6 @@ import java.io.IOException;
 import java.io.ObjectOutputStream;
 import java.util.Arrays;
 import java.util.Optional;
-import java.util.OptionalInt;
 import java.util.OptionalLong;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.spark.sql.internal.SQLConf;
@@ -79,7 +78,7 @@ public class SparkBigQueryConfigTest {
     assertThat(config.getTableId()).isEqualTo(TableId.of("dataset", "table"));
     assertThat(config.getFilter()).isEqualTo(Optional.empty());
     assertThat(config.getSchema()).isEqualTo(Optional.empty());
-    assertThat(config.getMaxParallelism()).isEqualTo(OptionalInt.empty());
+    assertThat(config.getMaxParallelism()).isEqualTo(DEFAULT_PARALLELISM);
     assertThat(config.getTemporaryGcsBucket()).isEqualTo(Optional.empty());
     assertThat(config.getIntermediateFormat())
         .isEqualTo(SparkBigQueryConfig.DEFAULT_INTERMEDIATE_FORMAT);
@@ -162,7 +161,7 @@ public class SparkBigQueryConfigTest {
     assertThat(config.getTableId()).isEqualTo(TableId.of("test_p", "test_d", "test_t"));
     assertThat(config.getFilter()).isEqualTo(Optional.of("test > 0"));
     assertThat(config.getSchema()).isEqualTo(Optional.empty());
-    assertThat(config.getMaxParallelism()).isEqualTo(OptionalInt.of(99));
+    assertThat(config.getMaxParallelism()).isEqualTo(99);
     assertThat(config.getTemporaryGcsBucket()).isEqualTo(Optional.of("some_bucket"));
     assertThat(config.getIntermediateFormat())
         .isEqualTo(SparkBigQueryConfig.IntermediateFormat.ORC);

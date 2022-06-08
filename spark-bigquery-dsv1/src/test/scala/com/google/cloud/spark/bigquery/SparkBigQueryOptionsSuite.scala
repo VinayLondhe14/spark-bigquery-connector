@@ -237,7 +237,7 @@ class SparkBigQueryConfigSuite extends FunSuite {
   }
 
   test("maxParallelism - only new config exist") {
-    assertResult(OptionalInt.of(3)) {
+    assertResult(3) {
       val options = SparkBigQueryConfig.from(
         asDataSourceOptionsMap(parameters + ("maxParallelism" -> "3")),
         emptyMap, // allConf
@@ -252,7 +252,7 @@ class SparkBigQueryConfigSuite extends FunSuite {
   }
 
   test("maxParallelism - both configs exist") {
-    assertResult(OptionalInt.of(3)) {
+    assertResult(3) {
       val options = SparkBigQueryConfig.from(
         asDataSourceOptionsMap(parameters + ("maxParallelism" -> "3", "parallelism" -> "10")),
         emptyMap, // allConf
@@ -267,7 +267,7 @@ class SparkBigQueryConfigSuite extends FunSuite {
   }
 
   test("maxParallelism - only old config exist") {
-    assertResult(OptionalInt.of(10)) {
+    assertResult(10) {
       val options = SparkBigQueryConfig.from(
         asDataSourceOptionsMap(parameters + ("parallelism" -> "10")),
         emptyMap, // allConf
@@ -282,7 +282,7 @@ class SparkBigQueryConfigSuite extends FunSuite {
   }
 
   test("maxParallelism - no config exist") {
-    assertResult(OptionalInt.empty()) {
+    assertResult(1) {
       val options = SparkBigQueryConfig.from(
         asDataSourceOptionsMap(parameters),
         emptyMap, // allConf

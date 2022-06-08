@@ -146,7 +146,8 @@ public class BigQueryDataSourceReaderContext {
             .orElse(ImmutableList.copyOf(fields.keySet()));
     Optional<String> filter = getCombinedFilter();
     ReadSessionResponse readSessionResponse =
-        readSessionCreator.create(tableId, selectedFields, filter);
+        readSessionCreator.create(
+            tableId, selectedFields, filter, readSessionCreatorConfig.getMaxParallelism());
     ReadSession readSession = readSessionResponse.getReadSession();
     logger.info(
         "Created read session for {}: {} for application id: {}",
@@ -182,7 +183,8 @@ public class BigQueryDataSourceReaderContext {
             .orElse(ImmutableList.copyOf(fields.keySet()));
     Optional<String> filter = getCombinedFilter();
     ReadSessionResponse readSessionResponse =
-        readSessionCreator.create(tableId, selectedFields, filter);
+        readSessionCreator.create(
+            tableId, selectedFields, filter, readSessionCreatorConfig.getMaxParallelism());
     ReadSession readSession = readSessionResponse.getReadSession();
     logger.info(
         "Created read session for {}: {} for application id: {}",
@@ -260,7 +262,7 @@ public class BigQueryDataSourceReaderContext {
     Optional<String> filter = getCombinedFilter();
     long rowCount = bigQueryClient.calculateTableSize(tableId, filter);
     logger.info("Used optimized BQ count(*) path. Count: " + rowCount);
-    int partitionsCount = readSessionCreatorConfig.getDefaultParallelism();
+    int partitionsCount = readSessionCreatorConfig.getMaxParallelism();
     int partitionSize = (int) (rowCount / partitionsCount);
     InputPartitionContext<InternalRow>[] partitions =
         IntStream.range(0, partitionsCount)

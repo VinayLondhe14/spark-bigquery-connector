@@ -18,7 +18,6 @@ package com.google.cloud.bigquery.connector.common;
 import static com.google.cloud.bigquery.connector.common.BigQueryErrorCode.UNSUPPORTED;
 import static java.lang.String.format;
 
-import com.google.cloud.bigquery.StandardTableDefinition;
 import com.google.cloud.bigquery.TableDefinition;
 import com.google.cloud.bigquery.TableId;
 import com.google.cloud.bigquery.TableInfo;
@@ -29,19 +28,12 @@ import com.google.cloud.bigquery.storage.v1.ReadSession;
 import com.google.cloud.bigquery.storage.v1.ReadSession.TableReadOptions;
 import com.google.common.collect.ImmutableList;
 import java.util.Optional;
-import java.util.OptionalInt;
 import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 // A helper class, also handles view materialization
 public class ReadSessionCreator {
-  /**
-   * Default parallelism to 1 reader per 400MB, which should be about the maximum allowed by the
-   * BigQuery Storage API. The number of partitions returned may be significantly less depending on
-   * a number of factors.
-   */
-  private static final int DEFAULT_BYTES_PER_PARTITION = 400 * 1000 * 1000;
 
   private static final Logger log = LoggerFactory.getLogger(ReadSessionCreator.class);
 
@@ -58,12 +50,6 @@ public class ReadSessionCreator {
     this.bigQueryReadClientFactory = bigQueryReadClientFactory;
   }
 
-  static int getMaxNumPartitionsRequested(
-      OptionalInt maxParallelism, StandardTableDefinition tableDefinition) {
-    return maxParallelism.orElse(
-        Math.max((int) (tableDefinition.getNumBytes() / DEFAULT_BYTES_PER_PARTITION), 1));
-  }
-
   /**
    * Creates a new ReadSession for parallel reads.
    *
@@ -76,11 +62,13 @@ public class ReadSessionCreator {
    * @return
    */
   public ReadSessionResponse create(
-      TableId table, ImmutableList<String> selectedFields, Optional<String> filter) {
+      TableId table,
+      ImmutableList<String> selectedFields,
+      Optional<String> filter,
+      int maxParallelism) {
     TableInfo tableDetails = bigQueryClient.getTable(table);
 
     TableInfo actualTable = getActualTable(tableDetails, selectedFields, filter);
-    StandardTableDefinition tableDefinition = actualTable.getDefinition();
 
     BigQueryReadClient bigQueryReadClient = bigQueryReadClientFactory.getBigQueryReadClient();
 
@@ -122,8 +110,7 @@ public class ReadSessionCreator {
                         .setReadOptions(readOptions)
                         .setTable(tablePath)
                         .build())
-                .setMaxStreamCount(
-                    getMaxNumPartitionsRequested(config.getMaxParallelism(), tableDefinition))
+                .setMaxStreamCount(maxParallelism)
                 .build());
 
     return new ReadSessionResponse(readSession, actualTable);

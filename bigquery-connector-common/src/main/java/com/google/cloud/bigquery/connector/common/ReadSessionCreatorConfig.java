@@ -18,7 +18,6 @@ package com.google.cloud.bigquery.connector.common;
 import com.google.cloud.bigquery.storage.v1.ArrowSerializationOptions.CompressionCodec;
 import com.google.cloud.bigquery.storage.v1.DataFormat;
 import java.util.Optional;
-import java.util.OptionalInt;
 
 public class ReadSessionCreatorConfig {
   private final boolean viewsEnabled;
@@ -28,8 +27,7 @@ public class ReadSessionCreatorConfig {
   private final int materializationExpirationTimeInMinutes;
   private final DataFormat readDataFormat;
   private final int maxReadRowsRetries;
-  private final OptionalInt maxParallelism;
-  private final int defaultParallelism;
+  private final int maxParallelism;
   private final Optional<String> requestEncodedBase;
   private final Optional<String> endpoint;
   private final int backgroundParsingThreads;
@@ -47,8 +45,7 @@ public class ReadSessionCreatorConfig {
       DataFormat readDataFormat,
       int maxReadRowsRetries,
       String viewEnabledParamName,
-      OptionalInt maxParallelism,
-      int defaultParallelism,
+      int maxParallelism,
       Optional<String> requestEncodedBase,
       Optional<String> endpoint,
       int backgroundParsingThreads,
@@ -65,7 +62,6 @@ public class ReadSessionCreatorConfig {
     this.readDataFormat = readDataFormat;
     this.maxReadRowsRetries = maxReadRowsRetries;
     this.maxParallelism = maxParallelism;
-    this.defaultParallelism = defaultParallelism;
     this.requestEncodedBase = requestEncodedBase;
     this.endpoint = endpoint;
     this.backgroundParsingThreads = backgroundParsingThreads;
@@ -108,12 +104,8 @@ public class ReadSessionCreatorConfig {
     return maxReadRowsRetries;
   }
 
-  public OptionalInt getMaxParallelism() {
+  public int getMaxParallelism() {
     return maxParallelism;
-  }
-
-  public int getDefaultParallelism() {
-    return defaultParallelism;
   }
 
   public Optional<String> getRequestEncodedBase() {

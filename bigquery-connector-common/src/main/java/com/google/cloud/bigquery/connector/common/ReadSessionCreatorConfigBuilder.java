@@ -3,7 +3,6 @@ package com.google.cloud.bigquery.connector.common;
 import com.google.cloud.bigquery.storage.v1.ArrowSerializationOptions.CompressionCodec;
 import com.google.cloud.bigquery.storage.v1.DataFormat;
 import java.util.Optional;
-import java.util.OptionalInt;
 
 public class ReadSessionCreatorConfigBuilder {
 
@@ -14,8 +13,7 @@ public class ReadSessionCreatorConfigBuilder {
   private DataFormat readDataFormat = DataFormat.ARROW;
   private int maxReadRowsRetries = 10;
   private String viewEnabledParamName = "";
-  private OptionalInt maxParallelism = OptionalInt.empty();
-  private int defaultParallelism = 1000;
+  private int maxParallelism = 1;
   private Optional<String> requestEncodedBase = Optional.empty();
   private Optional<String> endpoint = Optional.empty();
   private int backgroundParsingThreads = 0;
@@ -63,13 +61,8 @@ public class ReadSessionCreatorConfigBuilder {
     return this;
   }
 
-  public ReadSessionCreatorConfigBuilder setMaxParallelism(OptionalInt maxParallelism) {
+  public ReadSessionCreatorConfigBuilder setMaxParallelism(int maxParallelism) {
     this.maxParallelism = maxParallelism;
-    return this;
-  }
-
-  public ReadSessionCreatorConfigBuilder setDefaultParallelism(int defaultParallelism) {
-    this.defaultParallelism = defaultParallelism;
     return this;
   }
 
@@ -125,7 +118,6 @@ public class ReadSessionCreatorConfigBuilder {
         maxReadRowsRetries,
         viewEnabledParamName,
         maxParallelism,
-        defaultParallelism,
         requestEncodedBase,
         endpoint,
         backgroundParsingThreads,
