@@ -66,15 +66,6 @@
       </modules>
     </profile>
     <profile>
-      <id>query_pushdown</id>
-      <activation>
-        <activeByDefault>false</activeByDefault>
-      </activation>
-      <modules>
-        <module>spark-bigquery-pushdown</module>
-      </modules>
-    </profile>
-    <profile>
       <id>dsv1</id>
       <activation>
         <activeByDefault>false</activeByDefault>
@@ -97,6 +88,7 @@
         </module>
         <module>spark-bigquery-dsv1/spark-bigquery-with-dependencies_2.11
         </module>
+        <module>spark-bigquery-pushdown/spark-2.4-bigquery-pushdown_2.11</module>
       </modules>
     </profile>
     <profile>
@@ -112,6 +104,7 @@
         </module>
         <module>spark-bigquery-dsv1/spark-bigquery-with-dependencies_2.12
         </module>
+        <module>spark-bigquery-pushdown/spark-2.4-bigquery-pushdown_2.12</module>
       </modules>
     </profile>
     <profile>
@@ -132,6 +125,7 @@
         <module>spark-bigquery-dsv2/spark-bigquery-dsv2-common</module>
         <module>spark-bigquery-dsv2/spark-bigquery-dsv2-parent</module>
         <module>spark-bigquery-dsv2/spark-2.4-bigquery</module>
+        <module>spark-bigquery-pushdown/spark-2.4-bigquery-pushdown_2.12</module>
       </modules>
     </profile>
     <profile>
