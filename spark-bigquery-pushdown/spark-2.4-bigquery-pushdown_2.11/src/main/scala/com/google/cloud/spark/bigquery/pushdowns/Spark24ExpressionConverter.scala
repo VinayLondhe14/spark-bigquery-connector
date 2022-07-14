@@ -16,9 +16,16 @@
 
 package com.google.cloud.spark.bigquery.pushdowns
 
+import com.google.cloud.spark.bigquery.pushdowns.SparkBigQueryPushdownUtil.blockStatement
+import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
+
 /**
  * Convert Spark 2.4 specific expressions to SQL
  */
 class Spark24ExpressionConverter(expressionFactory: SparkExpressionFactory, sparkPlanFactory: SparkPlanFactory) extends SparkExpressionConverter(expressionFactory, sparkPlanFactory) {
-
+  class Spark24ExpressionConverter(expressionFactory: SparkExpressionFactory, sparkPlanFactory: SparkPlanFactory) extends SparkExpressionConverter(expressionFactory, sparkPlanFactory) {
+    override def createQueryFromScalarSubquery(plan: LogicalPlan): BigQuerySQLStatement = {
+      blockStatement(new Spark24BigQueryStrategy(this, expressionFactory, sparkPlanFactory).generateQueryFromPlan(plan).get.getStatement())
+    }
+  }
 }

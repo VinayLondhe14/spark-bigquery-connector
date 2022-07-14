@@ -21,6 +21,7 @@ import com.google.cloud.spark.bigquery.pushdowns.SparkBigQueryPushdownUtil.{addA
 import org.apache.spark.bigquery.BigNumericUDT
 import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.expressions.aggregate._
+import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.types._
 import org.apache.spark.unsafe.types.UTF8String
 
@@ -288,7 +289,7 @@ class SparkExpressionConverter(expressionFactory: SparkExpressionFactory, sparkP
           } + ConstantString("END")
 
       case ScalarSubquery(plan, _, _) =>
-        blockStatement(new BigQueryStrategy(this, expressionFactory, sparkPlanFactory).generateQueryFromPlan(plan).get.getStatement())
+        createQueryFromScalarSubquery(plan)
 
       case Coalesce(columns) =>
         ConstantString(expression.prettyName.toUpperCase) + blockStatement(makeStatement(columns.map(convertStatement(_, fields)), ", "))
@@ -307,6 +308,10 @@ class SparkExpressionConverter(expressionFactory: SparkExpressionFactory, sparkP
         }
       case _ => null
     })
+  }
+
+  def createQueryFromScalarSubquery(plan: LogicalPlan): BigQuerySQLStatement = {
+    blockStatement(new BigQueryStrategy(this, expressionFactory, sparkPlanFactory).generateQueryFromPlan(plan).get.getStatement())
   }
 
   def convertStringExpressions(expression: Expression, fields: Seq[Attribute]): Option[BigQuerySQLStatement] = {
