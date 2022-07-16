@@ -232,6 +232,9 @@ abstract class SparkExpressionConverter {
         ConstantString("RAND") + ConstantString("()")
       case Logarithm(left, right) =>
         ConstantString("LOG") + blockStatement(convertStatement(left, fields) + "," + convertStatement(right, fields))
+      case PromotePrecision(child) => convertStatement(child, fields)
+      case _: CheckOverflow =>
+        createCheckOverflowSQLStatement(expression, fields)
       case _ => null
     })
   }
@@ -342,7 +345,7 @@ abstract class SparkExpressionConverter {
       case BooleanType => "BOOL"
       case DateType => "DATE"
       case TimestampType => "TIMESTAMP"
-      case d: DecimalType => "BIGDECIMAL(" + d.precision + ", " + d.scale + ")"
+      case d: DecimalType => "BIGDECIMAL"
       case IntegerType | ShortType | LongType => "INT64"
       case FloatType | DoubleType => "FLOAT64"
       case _ => null
@@ -363,4 +366,6 @@ abstract class SparkExpressionConverter {
 
   // For supporting Scalar Subquery, we need specific implementations of BigQueryStrategy
   def createQueryFromScalarSubquery(plan: LogicalPlan): BigQuerySQLStatement
+
+  def createCheckOverflowSQLStatement(expression: Expression, fields: Seq[Attribute]): BigQuerySQLStatement
 }

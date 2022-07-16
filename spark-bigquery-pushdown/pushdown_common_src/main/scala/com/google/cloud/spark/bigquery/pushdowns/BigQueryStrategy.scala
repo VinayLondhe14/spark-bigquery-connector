@@ -19,6 +19,7 @@ package com.google.cloud.spark.bigquery.pushdowns
 import com.google.cloud.bigquery.connector.common.{BigQueryPushdownException, BigQueryPushdownUnsupportedException}
 import com.google.cloud.spark.bigquery.direct.BigQueryRDDFactory
 import com.google.cloud.spark.bigquery.direct.DirectBigQueryRelation
+import com.google.cloud.spark.bigquery.pushdowns.SparkBigQueryPushdownUtil.convertProjections
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.Strategy
 import org.apache.spark.sql.catalyst.plans.{FullOuter, Inner, LeftAnti, LeftOuter, LeftSemi, RightOuter}
@@ -71,7 +72,8 @@ abstract class BigQueryStrategy(expressionConverter: SparkExpressionConverter, e
   def hasUnsupportedNodes(plan: LogicalPlan): Boolean = {
     plan.foreach {
       // DataSourceV2Relation is the Spark 2.4 DSv2 connector relation
-      case UnaryOperationExtractor(_) | BinaryOperationExtractor(_, _) | LogicalRelation(_, _, _, _) | DataSourceV2Relation(_, _, _, _, _) =>
+      case  UnaryOperationExtractor(_) | BinaryOperationExtractor(_, _) | LogicalRelation(_, _, _, _) | DataSourceV2Relation(_, _, _, _, _) =>
+      case _: Union | _: Expand =>
       case subPlan =>
         logInfo(s"LogicalPlan has unsupported node for query pushdown : ${subPlan.nodeName} in ${subPlan.getClass.getName}")
         return true
@@ -190,10 +192,22 @@ abstract class BigQueryStrategy(expressionConverter: SparkExpressionConverter, e
           }
         }
 
+      case UnionExtractor(children) =>
+        createUnionQuery(children)
+
+      case Expand(projections, output, child) =>
+        val children = projections.map { p =>
+          val proj = convertProjections(p, output)
+          Project(proj, child)
+        }
+        createUnionQuery(children)
+
       case _ =>
         throw new BigQueryPushdownUnsupportedException(
           s"Query pushdown failed in generateQueries for node ${plan.nodeName} in ${plan.getClass.getName}"
         )
     }
   }
+
+  def createUnionQuery(children: Seq[LogicalPlan]): Option[BigQuerySQLQuery]
 }

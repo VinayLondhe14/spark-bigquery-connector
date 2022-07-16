@@ -17,6 +17,7 @@
 package com.google.cloud.spark.bigquery.pushdowns
 
 import com.google.cloud.spark.bigquery.pushdowns.SparkBigQueryPushdownUtil.blockStatement
+import org.apache.spark.sql.catalyst.expressions.{Attribute, CheckOverflow, Expression}
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 
 /**
@@ -26,5 +27,17 @@ class Spark24ExpressionConverter(expressionFactory: SparkExpressionFactory, spar
   override def createQueryFromScalarSubquery(plan: LogicalPlan): BigQuerySQLStatement = {
     blockStatement(new Spark24BigQueryStrategy(this, expressionFactory, sparkPlanFactory)
       .generateQueryFromPlan(plan).get.getStatement())
+  }
+
+  override def createCheckOverflowSQLStatement(expression: Expression, fields: Seq[Attribute]): BigQuerySQLStatement = {
+    expression match {
+      case CheckOverflow(child, t) =>
+        getCastType(t) match {
+          case Some(cast) =>
+            ConstantString("CAST") +
+              blockStatement(convertStatement(child, fields) + "AS" + cast)
+          case _ => convertStatement(child, fields)
+        }
+    }
   }
 }

@@ -812,7 +812,7 @@ class SparkExpressionConverterSuite extends AnyFunSuite with BeforeAndAfter {
     val castExpression = Cast.apply(AttributeReference.apply("Transaction", StringType)(ExprId.apply(2)), DecimalType(10, 5))
     val bigQuerySQLStatement = expressionConverter.convertMiscellaneousExpressions(castExpression, fields)
     assert(bigQuerySQLStatement.isDefined)
-    assert(bigQuerySQLStatement.get.toString == "CAST ( TRANSACTION AS BIGDECIMAL(10, 5) )")
+    assert(bigQuerySQLStatement.get.toString == "CAST ( TRANSACTION AS BIGDECIMAL )")
   }
 
   test("convertMiscExpressions with ShiftLeft") {
