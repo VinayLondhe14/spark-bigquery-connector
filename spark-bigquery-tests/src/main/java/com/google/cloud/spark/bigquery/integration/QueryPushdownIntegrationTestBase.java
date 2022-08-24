@@ -309,42 +309,6 @@ public class QueryPushdownIntegrationTestBase extends SparkBigQueryIntegrationTe
     assertThat(r1.get(1)).isEqualTo(true); // contains
     assertThat(r1.get(2)).isEqualTo(true); // ends_With
     assertThat(r1.get(3)).isEqualTo(true); // starts_With
-
-    writeTestDatasetToBigQuery();
-    df =
-        spark
-            .read()
-            .format("bigquery")
-            .option("materializationDataset", testDataset.toString())
-            .load(testDataset.toString() + "." + testTable);
-
-    df.createOrReplaceTempView("numStructDF");
-
-    result =
-        spark
-            .sql(
-                "SELECT "
-                    + "num1 == num2 AS EqualTo, "
-                    + "num1 > num2 AS GreaterThan, "
-                    + "num1 < num2 AS LessThan, "
-                    + "num1 >= num2 AS GreaterThanEqualTo, "
-                    + "num1 <= num2 AS LessThanEqualTo, "
-                    + "num1 != num2 AS NotEqualTo, "
-                    + "ISNULL(num1) AS IsNull, "
-                    + "ISNOTNULL(num2) AS IsNotNull, "
-                    + "num3 IN (1,2) AS In "
-                    + "FROM numStructDF")
-            .collectAsList();
-    r1 = result.get(0);
-    assertThat(r1.get(0)).isEqualTo(false); // EqualTo
-    assertThat(r1.get(1)).isEqualTo(true); // GreaterThan
-    assertThat(r1.get(2)).isEqualTo(false); // LessThan
-    assertThat(r1.get(3)).isEqualTo(true); // GreaterThanEqualTo
-    assertThat(r1.get(4)).isEqualTo(false); // LessThanEqualTo
-    assertThat(r1.get(5)).isEqualTo(true); // NotEqualTo
-    assertThat(r1.get(6)).isEqualTo(false); // IsNull
-    assertThat(r1.get(7)).isEqualTo(true); // IsNotNull
-    assertThat(r1.get(8)).isEqualTo(true); // In
   }
 
   @Test
@@ -403,14 +367,19 @@ public class QueryPushdownIntegrationTestBase extends SparkBigQueryIntegrationTe
             .createDataset(
                 Arrays.asList(
                     new NumStruct(
-                        1L,
+                        2L,
                         2L,
                         3L,
                         ImmutableList.of(new StringStruct("1:str3", "2:str1", "3:str2"))),
                     new NumStruct(
-                        2L,
                         3L,
+                        2L,
                         4L,
+                        ImmutableList.of(new StringStruct("2:str3", "3:str1", "4:str2"))),
+                    new NumStruct(
+                        4L,
+                        3L,
+                        5L,
                         ImmutableList.of(new StringStruct("2:str3", "3:str1", "4:str2")))),
                 Encoders.bean(NumStruct.class))
             .toDF();
@@ -424,7 +393,7 @@ public class QueryPushdownIntegrationTestBase extends SparkBigQueryIntegrationTe
   }
 
   @Test
-  public void testAggregateExpressions() {
+  public void testOrderBy() {
     writeTestDatasetToBigQuery();
     Dataset<Row> df =
         spark
@@ -435,37 +404,127 @@ public class QueryPushdownIntegrationTestBase extends SparkBigQueryIntegrationTe
 
     df.createOrReplaceTempView("numStructDF");
 
-    List<Row> result =
-        spark
-            .sql(
-                "SELECT "
-                    + "AVG(num1) as average, "
-                    + "CORR(num1, num2) as corr, "
-                    + "COVAR_POP(num1, num2) as covar_pop, "
-                    + "COVAR_SAMP(num1, num2) as covar_samp, "
-                    + "COUNT(*) as count, "
-                    + "MAX(num1) as max, "
-                    + "MIN(num1) as min, "
-                    + "SUM(num1) as sum, "
-                    + "STDDEV_POP(num1) as stddev_pop, "
-                    + "ROUND(STDDEV_SAMP(num1),2) as stddev_samp, "
-                    + "VAR_POP(num1) as var_pop, "
-                    + "VAR_SAMP(num1) as var_samp "
-                    + "FROM numStructDF ")
-            .collectAsList();
+    // List<Row> result =
+    //     spark
+    //         .sql(
+    //             "SELECT num1, num2, num3 FROM numStructDF WHERE num3 > 2 AND num3 < 5 ORDER BY
+    // num3 DESC LIMIT 1")
+    //         .collectAsList();
 
-    Row r1 = result.get(0);
-    assertThat(r1.get(0)).isEqualTo(3.5); // AVG(num1)
-    assertThat(r1.get(1)).isEqualTo(1.0); // CORR(num1, num2)
-    assertThat(r1.get(2)).isEqualTo(0.25); // COVAR_POP(num1, num2)
-    assertThat(r1.get(3)).isEqualTo(0.5); // COVAR_SAMP(num1, num2)
-    assertThat(r1.get(4)).isEqualTo(2); // COUNT(*)
-    assertThat(r1.get(5)).isEqualTo(4); // MAX(num1)
-    assertThat(r1.get(6)).isEqualTo(3); // MIN(num1)
-    assertThat(r1.get(7)).isEqualTo(7); // SUM(num1)
-    assertThat(r1.get(8)).isEqualTo(0.5); // STDDEV_POP(num1)
-    assertThat(r1.get(9)).isEqualTo(0.71); // ROUND(STDDEV_SAMP(num1),2)
-    assertThat(r1.get(10)).isEqualTo(0.25); // VAR_POP(num1)
-    assertThat(r1.get(11)).isEqualTo(0.5); // VAR_SAMP(num1)
+    df =
+        spark.sql(
+            "SELECT num1, num2, num3 FROM numStructDF WHERE num3 > 2 AND num3 < 5 ORDER BY num3 LIMIT 5");
+
+    // df.explain(true);
+    // df.collect();
+    df.show();
+    // result.get(0);
+  }
+
+  @Test
+  public void testAggregation() {
+    // spark.range(1, 100).createOrReplaceTempView("t1");
+    // Dataset<Row> df = spark.sql("select id from t1 where t1.id = 10");
+    // df.explain(true);
+
+    Dataset<Row> df =
+        spark
+            .read()
+            .format("bigquery")
+            .option("materializationDataset", testDataset.toString())
+            .option("table", "google.com:hadoop-cloud-dev:vinaylondhe_test.roster")
+            .option("pushdownEnabled", true)
+            .load()
+            .where("_SchoolID >= 51 and _SchoolID <= 75");
+    // .groupBy("LastName")
+    // .sum("_SchoolID");
+
+    // df.show();
+    // df.groupBy("_SchoolID").sum().show();
+
+    // df.groupBy(col("_SchoolID").as("SId")).agg(sum("_SchoolID").as("sum")).show();
+    //
+
+    // df.groupBy("O_CUSTKEY")
+    //     .agg(sum("O_TOTALPRICE").alias("PRICE_NAME"))
+    //     .sort(col("PRICE_NAME").desc)
+    //     .limit(10)
+    Dataset<Row> result = df.groupBy("LastName").sum("_SchoolID").sort("LastName");
+    // // Row[] rowResult = (Row[]) result.take(5);
+    // result.show();
+    result.collect();
+
+    // Dataset<Row> result2 = df.sort("LastName").limit(4);
+    // result2.show(4);
+    // df.sort("LastName").take(10);
+
+    // df.sort("LastName").show(10);
+    // Row[] rowResult = (Row[]) df.groupBy("LastName").sum("_SchoolID").sort("LastName").collect();
+    // System.out.println(Arrays.toString(rowResult));
+  }
+
+  @Test
+  public void testTpcDs() {
+    String[] tables =
+        new String[] {
+          "catalog_sales",
+          "catalog_returns",
+          "date_dim",
+          "time_dim",
+          "customer",
+          "customer_address",
+          "customer_demographics",
+          "household_demographics",
+          "income_band",
+          "household_demographics",
+          "income_band",
+          "inventory",
+          "item",
+          "promotion",
+          "warehouse",
+          "web_sales",
+          "web_returns",
+          "store",
+          "web_page",
+          "store_sales",
+          "store_returns"
+        };
+
+    Dataset<Row> df;
+    for (String table : tables) {
+      df =
+          spark
+              .read()
+              .format("bigquery")
+              .option("table", "tpcds_1T." + table)
+              .option("materializationDataset", testDataset.toString())
+              .load();
+      df.createOrReplaceTempView(table);
+    }
+
+    df =
+        spark.sql(
+            "SELECT * FROM (SELECT                item.i_brand_id          brand_id, \n"
+                + "               item.i_brand             brand, \n"
+                + "               Sum(ss_ext_discount_amt) sum_agg \n"
+                + "FROM   date_dim dt, \n"
+                + "       store_sales, \n"
+                + "       item \n"
+                + "WHERE  dt.d_date_sk = store_sales.ss_sold_date_sk \n"
+                + "       AND store_sales.ss_item_sk = item.i_item_sk\n"
+                + "       AND dt.d_moy = 11\n"
+                + "GROUP  BY dt.d_year, \n"
+                + "          item.i_brand, \n"
+                + "          item.i_brand_id\n"
+                + "ORDER BY  dt.d_year,\n"
+                + "          sum_agg,\n"
+                + "          brand_id\n"
+                + "LIMIT 10) WHERE sum_agg > 70000");
+
+    // df.limit(10);
+    // df.show();
+
+    // df.sort("dt.d_year", "sum_agg", "brand_id").show(10);
+    df.collect();
   }
 }

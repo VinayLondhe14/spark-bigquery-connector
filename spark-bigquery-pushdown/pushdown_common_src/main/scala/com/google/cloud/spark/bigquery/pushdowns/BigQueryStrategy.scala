@@ -24,7 +24,7 @@ import org.apache.spark.sql.Strategy
 import org.apache.spark.sql.catalyst.analysis.NamedRelation
 import org.apache.spark.sql.catalyst.plans.logical._
 import org.apache.spark.sql.catalyst.plans._
-import org.apache.spark.sql.execution.SparkPlan
+import org.apache.spark.sql.execution.{GlobalLimitExec, ProjectExec, SparkPlan}
 import org.apache.spark.sql.execution.datasources.LogicalRelation
 
 /**
@@ -68,6 +68,19 @@ abstract class BigQueryStrategy(expressionConverter: SparkExpressionConverter, e
     }
   }
 
+  def showCalled(): Boolean = {
+    val stackTraceElements = Thread.currentThread.getStackTrace
+
+    for (stackTraceElement <- stackTraceElements) {
+      logWarning(stackTraceElement.getClassName + stackTraceElement.getMethodName)
+      if (stackTraceElement.getClassName.equals("org.apache.spark.sql.Dataset") && stackTraceElement.getMethodName.equals("showString")) {
+        return true
+      }
+    }
+
+    false
+  }
+
   def hasUnsupportedNodes(plan: LogicalPlan): Boolean = {
     plan.foreach {
       case UnaryOperationExtractor(_) | BinaryOperationExtractor(_, _)  | UnionOperationExtractor(_) =>
@@ -88,6 +101,11 @@ abstract class BigQueryStrategy(expressionConverter: SparkExpressionConverter, e
   def generateSparkPlanFromLogicalPlan(plan: LogicalPlan): Seq[SparkPlan] = {
     val queryRoot = generateQueryFromOriginalLogicalPlan(plan)
     val bigQueryRDDFactory = getRDDFactory(queryRoot.get)
+
+    if (showCalled()) {
+      val bigQueryPlan = BigQueryPlan(queryRoot.get.output, bigQueryRDDFactory.get.buildScanFromSQL(queryRoot.get.getStatement().toString))
+      return Seq(ProjectExec(getTopMostProjectNode(plan).projectList, bigQueryPlan))
+    }
 
     val sparkPlan = sparkPlanFactory.createSparkPlan(queryRoot.get, bigQueryRDDFactory.get)
     Seq(sparkPlan.get)
@@ -116,10 +134,24 @@ abstract class BigQueryStrategy(expressionConverter: SparkExpressionConverter, e
    * @return The processed LogicalPlan removing all the empty Project plan's or SubQueryAlias, if the input has any
    */
   def cleanUpLogicalPlan(plan: LogicalPlan): LogicalPlan = {
-    plan.transform({
+    val cleanedPlan = plan.transform({
       case Project(Nil, child) => child
       case SubqueryAlias(_, child) => child
     })
+
+    if(showCalled()) {
+      val projectNode = getTopMostProjectNode(cleanedPlan)
+      val planWithoutTopMostProject = cleanedPlan.transform({
+        case node@Project(_, _) if node.fastEquals(projectNode) => node.child
+      })
+      return planWithoutTopMostProject
+    }
+
+    cleanedPlan
+  }
+
+  def getTopMostProjectNode(plan: LogicalPlan): Project = {
+    plan.find(_.isInstanceOf[Project]).get.asInstanceOf[Project]
   }
 
   def getRDDFactory(queryRoot: BigQuerySQLQuery): Option[BigQueryRDDFactory] = {
@@ -171,6 +203,9 @@ abstract class BigQueryStrategy(expressionConverter: SparkExpressionConverter, e
 
             case Aggregate(groups, fields, _) =>
               AggregateQuery(expressionConverter, expressionFactory, fields, groups, subQuery, alias.next)
+
+            case Limit(limitExpr, Limit(_, Sort(orderExpr, true, _))) =>
+              SortLimitQuery(expressionConverter, expressionFactory, Some(limitExpr), orderExpr, subQuery, alias.next)
 
             case Limit(limitExpr, Sort(orderExpr, true, _)) =>
               SortLimitQuery(expressionConverter, expressionFactory, Some(limitExpr), orderExpr, subQuery, alias.next)
