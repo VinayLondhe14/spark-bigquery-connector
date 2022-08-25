@@ -18,14 +18,15 @@ package com.google.cloud.spark.bigquery.pushdowns
 
 import com.google.cloud.bigquery.connector.common.{BigQueryPushdownException, BigQueryPushdownUnsupportedException}
 import com.google.cloud.spark.bigquery.direct.{BigQueryRDDFactory, DirectBigQueryRelation}
-import com.google.cloud.spark.bigquery.pushdowns.SparkBigQueryPushdownUtil.convertExpressionToNamedExpression
+import com.google.cloud.spark.bigquery.pushdowns.SparkBigQueryPushdownUtil.{convertExpressionToNamedExpression, isDataFrameShowMethodInStackTrace}
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.Strategy
 import org.apache.spark.sql.catalyst.analysis.NamedRelation
-import org.apache.spark.sql.catalyst.plans.logical._
+import org.apache.spark.sql.catalyst.expressions.NamedExpression
 import org.apache.spark.sql.catalyst.plans._
-import org.apache.spark.sql.execution.{GlobalLimitExec, ProjectExec, SparkPlan}
+import org.apache.spark.sql.catalyst.plans.logical._
 import org.apache.spark.sql.execution.datasources.LogicalRelation
+import org.apache.spark.sql.execution.{ProjectExec, SparkPlan}
 
 /**
  * Our hook into Spark that converts the logical plan into physical plan.
@@ -68,19 +69,6 @@ abstract class BigQueryStrategy(expressionConverter: SparkExpressionConverter, e
     }
   }
 
-  def showCalled(): Boolean = {
-    val stackTraceElements = Thread.currentThread.getStackTrace
-
-    for (stackTraceElement <- stackTraceElements) {
-      logWarning(stackTraceElement.getClassName + stackTraceElement.getMethodName)
-      if (stackTraceElement.getClassName.equals("org.apache.spark.sql.Dataset") && stackTraceElement.getMethodName.equals("showString")) {
-        return true
-      }
-    }
-
-    false
-  }
-
   def hasUnsupportedNodes(plan: LogicalPlan): Boolean = {
     plan.foreach {
       case UnaryOperationExtractor(_) | BinaryOperationExtractor(_, _)  | UnionOperationExtractor(_) =>
@@ -99,29 +87,28 @@ abstract class BigQueryStrategy(expressionConverter: SparkExpressionConverter, e
   }
 
   def generateSparkPlanFromLogicalPlan(plan: LogicalPlan): Seq[SparkPlan] = {
-    val queryRoot = generateQueryFromOriginalLogicalPlan(plan)
-    val bigQueryRDDFactory = getRDDFactory(queryRoot.get)
+    val cleanedPlan = cleanUpLogicalPlan(plan)
 
-    if (showCalled()) {
-      val bigQueryPlan = BigQueryPlan(queryRoot.get.output, bigQueryRDDFactory.get.buildScanFromSQL(queryRoot.get.getStatement().toString))
-      return Seq(ProjectExec(getTopMostProjectNode(plan).projectList, bigQueryPlan))
+    // We have to handle df.show() case differently because Spark could add
+    // Project and Limit nodes on top of the LogicalPlan and that could mess up
+    // the ordering of results.
+    if (isDataFrameShowMethodInStackTrace) {
+
+      // We first try to remove the top most project node that could have been
+      // added by Spark for df.show()
+      val planWithoutProjectNode = removeTopMostProjectNodeFromPlan(cleanedPlan)
+
+      // If the plan has now changed, we get the selected(projected) columns and
+      // run them through ProjectExec with BigQueryPlan as the child. Note that
+      // the plan could stay the same if the selected(projected) columns are all
+      // of type string. In that case, we don't have to add a SparkPlan with ProjectExec
+      if(!cleanedPlan.fastEquals(planWithoutProjectNode)) {
+        val bigQueryPlan = generateBigQueryPlanFromLogicalPlan(planWithoutProjectNode)
+        return Seq(sparkPlanFactory.createProjectPlan(getFinalProjectionColumns(cleanedPlan), bigQueryPlan).get)
+      }
     }
 
-    val sparkPlan = sparkPlanFactory.createSparkPlan(queryRoot.get, bigQueryRDDFactory.get)
-    Seq(sparkPlan.get)
-  }
-
-  /**
-   * Clean up the Spark generated logical plan and generate a BigQuerySQLQuery
-   * from the cleaned plan
-   *
-   * @param plan The LogicalPlan to be processed
-   * @return An object of type Option[BigQuerySQLQuery], which is None if the plan contains an
-   *         unsupported node type.
-   */
-  def generateQueryFromOriginalLogicalPlan(plan: LogicalPlan): Option[BigQuerySQLQuery] = {
-    val cleanedPlan = cleanUpLogicalPlan(plan)
-    generateQueryFromPlan(cleanedPlan)
+    Seq(generateBigQueryPlanFromLogicalPlan(cleanedPlan))
   }
 
   /**
@@ -139,19 +126,30 @@ abstract class BigQueryStrategy(expressionConverter: SparkExpressionConverter, e
       case SubqueryAlias(_, child) => child
     })
 
-    if(showCalled()) {
-      val projectNode = getTopMostProjectNode(cleanedPlan)
-      val planWithoutTopMostProject = cleanedPlan.transform({
-        case node@Project(_, _) if node.fastEquals(projectNode) => node.child
-      })
-      return planWithoutTopMostProject
-    }
-
     cleanedPlan
   }
 
-  def getTopMostProjectNode(plan: LogicalPlan): Project = {
-    plan.find(_.isInstanceOf[Project]).get.asInstanceOf[Project]
+  def removeTopMostProjectNodeFromPlan(plan: LogicalPlan): LogicalPlan = {
+    val projectNode = getTopMostProjectNode(plan).getOrElse(return plan)
+
+    plan.transform({
+      case node@Project(_, _) if node.fastEquals(projectNode) => node.child
+    })
+  }
+
+  def getTopMostProjectNode(plan: LogicalPlan): Option[Project] = {
+    plan.find(_.isInstanceOf[Project]).asInstanceOf[Option[Project]]
+  }
+
+  def getFinalProjectionColumns(plan: LogicalPlan): Seq[NamedExpression] = {
+    getTopMostProjectNode(plan).get.projectList
+  }
+
+  def generateBigQueryPlanFromLogicalPlan(plan: LogicalPlan): BigQueryPlan = {
+    val queryRoot = generateQueryFromPlan(plan)
+    val bigQueryRDDFactory = getRDDFactory(queryRoot.get)
+    sparkPlanFactory.createBigQueryPlan(queryRoot.get, bigQueryRDDFactory.get)
+      .getOrElse(throw new BigQueryPushdownException("Could not generate BigQuery physical plan from query"))
   }
 
   def getRDDFactory(queryRoot: BigQuerySQLQuery): Option[BigQueryRDDFactory] = {

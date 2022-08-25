@@ -11,11 +11,16 @@ public class DataSourceV1QueryPushdownIntegrationTest extends QueryPushdownInteg
 
   @Test
   public void testOrder() {
-    testOrderBy();
+    testOrderBy2();
   }
 
   @Test
   public void testAgg() {
     testAggregation();
+  }
+
+  @Test
+  public void testTpc() {
+    testTpcDs();
   }
 }

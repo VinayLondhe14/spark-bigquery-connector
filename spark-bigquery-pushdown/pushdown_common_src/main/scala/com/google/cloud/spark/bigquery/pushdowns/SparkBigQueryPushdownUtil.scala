@@ -21,6 +21,8 @@ import com.google.cloud.bigquery.connector.common.BigQueryUtil
 import com.google.common.collect.ImmutableList
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.expressions.{Alias, Attribute, Expression, NamedExpression}
+import org.apache.spark.sql.catalyst.plans.logical.{LogicalPlan, Project}
+
 import scala.collection.JavaConverters._
 
 /**
@@ -129,5 +131,15 @@ object SparkBigQueryPushdownUtil {
         case _ => expressionFactory.createAlias(expression._1, expression._2.name, expression._2.exprId, Seq.empty[String], Some(expression._2.metadata))
       }
     }
+  }
+
+  def isDataFrameShowMethodInStackTrace: Boolean = {
+    for (stackTraceElement <- Thread.currentThread.getStackTrace) {
+      if (stackTraceElement.getClassName.equals("org.apache.spark.sql.Dataset") && stackTraceElement.getMethodName.equals("showString")) {
+        return true
+      }
+    }
+
+    false
   }
 }

@@ -392,6 +392,23 @@ public class QueryPushdownIntegrationTestBase extends SparkBigQueryIntegrationTe
         .save();
   }
 
+  /** Method to create a test table of schema NumStruct, in test dataset */
+  protected void writeTestDatasetToBigQuery2() {
+
+    List<StringStruct> stringStructList = Arrays.asList(new StringStruct("absac", "dsd", "wewe"), new StringStruct("rthrt", "vdfv", "h"), new StringStruct("gtr", "sd", "fsfwefwefd"));
+    Dataset<Row> df =
+        spark
+            .createDataset(stringStructList, Encoders.bean(StringStruct.class))
+            .toDF();
+    df.write()
+        .format("bigquery")
+        .mode(SaveMode.Append)
+        .option("table", testDataset.toString() + "." + testTable)
+        .option("temporaryGcsBucket", TestConstants.TEMPORARY_GCS_BUCKET)
+        .option("writeMethod", WriteMethod.INDIRECT.toString())
+        .save();
+  }
+
   @Test
   public void testOrderBy() {
     writeTestDatasetToBigQuery();
@@ -422,6 +439,36 @@ public class QueryPushdownIntegrationTestBase extends SparkBigQueryIntegrationTe
   }
 
   @Test
+  public void testOrderBy2() {
+    writeTestDatasetToBigQuery2();
+    Dataset<Row> df =
+        spark
+            .read()
+            .format("bigquery")
+            .option("materializationDataset", testDataset.toString())
+            .load(testDataset.toString() + "." + testTable);
+
+    df.createOrReplaceTempView("numStructDF");
+
+    // List<Row> result =
+    //     spark
+    //         .sql(
+    //             "SELECT num1, num2, num3 FROM numStructDF WHERE num3 > 2 AND num3 < 5 ORDER BY
+    // num3 DESC LIMIT 1")
+    //         .collectAsList();
+
+    df =
+        spark.sql(
+            "SELECT str1, str2, str3 FROM numStructDF WHERE str1 > 'd' ORDER BY str1 LIMIT 5");
+
+    // df.explain(true);
+    //df.collect();
+    df.show();
+    // result.get(0);
+  }
+
+
+  @Test
   public void testAggregation() {
     // spark.range(1, 100).createOrReplaceTempView("t1");
     // Dataset<Row> df = spark.sql("select id from t1 where t1.id = 10");
@@ -450,9 +497,10 @@ public class QueryPushdownIntegrationTestBase extends SparkBigQueryIntegrationTe
     //     .sort(col("PRICE_NAME").desc)
     //     .limit(10)
     Dataset<Row> result = df.groupBy("LastName").sum("_SchoolID").sort("LastName");
+    //Dataset<Row> result = df.sort("LastName");
     // // Row[] rowResult = (Row[]) result.take(5);
-    // result.show();
-    result.collect();
+    result.show();
+    // result.collect();
 
     // Dataset<Row> result2 = df.sort("LastName").limit(4);
     // result2.show(4);
@@ -504,27 +552,38 @@ public class QueryPushdownIntegrationTestBase extends SparkBigQueryIntegrationTe
 
     df =
         spark.sql(
-            "SELECT * FROM (SELECT                item.i_brand_id          brand_id, \n"
-                + "               item.i_brand             brand, \n"
-                + "               Sum(ss_ext_discount_amt) sum_agg \n"
-                + "FROM   date_dim dt, \n"
-                + "       store_sales, \n"
-                + "       item \n"
-                + "WHERE  dt.d_date_sk = store_sales.ss_sold_date_sk \n"
-                + "       AND store_sales.ss_item_sk = item.i_item_sk\n"
-                + "       AND dt.d_moy = 11\n"
-                + "GROUP  BY dt.d_year, \n"
-                + "          item.i_brand, \n"
-                + "          item.i_brand_id\n"
-                + "ORDER BY  dt.d_year,\n"
-                + "          sum_agg,\n"
-                + "          brand_id\n"
-                + "LIMIT 10) WHERE sum_agg > 70000");
+            "select i_item_id,\n"
+                + "        ca_country,\n"
+                + "        ca_state,\n"
+                + "        ca_county,\n"
+                + "        avg( cast(cs_quantity as decimal(12,2))) agg1,\n"
+                + "        avg( cast(cs_list_price as decimal(12,2))) agg2,\n"
+                + "        avg( cast(cs_coupon_amt as decimal(12,2))) agg3,\n"
+                + "        avg( cast(cs_sales_price as decimal(12,2))) agg4,\n"
+                + "        avg( cast(cs_net_profit as decimal(12,2))) agg5,\n"
+                + "        avg( cast(c_birth_year as decimal(12,2))) agg6,\n"
+                + "        avg( cast(cd1.cd_dep_count as decimal(12,2))) agg7\n"
+                + " from catalog_sales, customer_demographics cd1,\n"
+                + "      customer_demographics cd2, customer, customer_address, date_dim, item\n"
+                + " where cs_sold_date_sk = d_date_sk and\n"
+                + "       cs_item_sk = i_item_sk and\n"
+                + "       cs_bill_cdemo_sk = cd1.cd_demo_sk and\n"
+                + "       cs_bill_customer_sk = c_customer_sk and\n"
+                + "       cd1.cd_gender = 'F' and\n"
+                + "       cd1.cd_education_status = 'Unknown' and\n"
+                + "       c_current_cdemo_sk = cd2.cd_demo_sk and\n"
+                + "       c_current_addr_sk = ca_address_sk and\n"
+                + "       c_birth_month in (1,6,8,9,12,2) and\n"
+                + "       d_year = 1998 and\n"
+                + "       ca_state  in ('MS','IN','ND','OK','NM','VA','MS')\n"
+                + " group by rollup (i_item_id, ca_country, ca_state, ca_county)\n"
+                + " order by ca_country, ca_state, ca_county, i_item_id\n"
+                + " LIMIT 100");
 
     // df.limit(10);
     // df.show();
 
     // df.sort("dt.d_year", "sum_agg", "brand_id").show(10);
-    df.collect();
+    df.show();
   }
 }
