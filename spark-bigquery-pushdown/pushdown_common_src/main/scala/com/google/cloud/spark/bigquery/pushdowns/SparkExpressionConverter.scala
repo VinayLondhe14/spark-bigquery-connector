@@ -284,7 +284,8 @@ abstract class SparkExpressionConverter {
         getCastType(t) match {
           case Some(cast) =>
 
-            /** For known unsupported data conversion, raise exception to break the pushdown process.
+            /**
+             * For known unsupported data conversion, raise exception to break the pushdown process.
              * For example, BigQuery doesn't support to convert DATE/TIMESTAMP to NUMBER
              */
             (child.dataType, t) match {
@@ -293,11 +294,19 @@ abstract class SparkExpressionConverter {
                 throw new BigQueryPushdownUnsupportedException(
                   "Pushdown failed due to unsupported conversion")
               }
+
+              /**
+               * BigQuery doesn't support casting from Integer to Bytes (https://cloud.google.com/bigquery/docs/reference/standard-sql/functions-and-operators#cast_as_bytes)
+               * So handling this case separately.
+               */
+              case (_: IntegerType | _: LongType | _: FloatType | _: DoubleType | _: DecimalType ,_: ByteType) =>
+                ConstantString("CAST") +
+                  blockStatement(convertStatement(child, fields) + ConstantString("AS NUMERIC"))
               case _ =>
+                ConstantString("CAST") +
+                  blockStatement(convertStatement(child, fields) + "AS" + cast)
             }
 
-            ConstantString("CAST") +
-              blockStatement(convertStatement(child, fields) + "AS" + cast)
           case _ => convertStatement(child, fields)
         }
 

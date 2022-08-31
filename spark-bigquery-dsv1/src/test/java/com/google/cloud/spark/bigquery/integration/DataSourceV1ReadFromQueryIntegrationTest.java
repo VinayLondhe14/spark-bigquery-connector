@@ -15,8 +15,13 @@
  */
 package com.google.cloud.spark.bigquery.integration;
 
+import org.junit.Test;
+
 public class DataSourceV1ReadFromQueryIntegrationTest extends ReadFromQueryIntegrationTestBase {
 
   // tests are from the super-class
-
+  @Test
+  public void testSomething() {
+    testReadFromQuery();
+  }
 }

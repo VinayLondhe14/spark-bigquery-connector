@@ -11,7 +11,7 @@ public class DataSourceV1QueryPushdownIntegrationTest extends QueryPushdownInteg
 
   @Test
   public void testOrder() {
-    testOrderBy2();
+    testOrderBy();
   }
 
   @Test
@@ -21,6 +21,6 @@ public class DataSourceV1QueryPushdownIntegrationTest extends QueryPushdownInteg
 
   @Test
   public void testTpc() {
-    testTpcDs();
+    testTpcDsQ61();
   }
 }

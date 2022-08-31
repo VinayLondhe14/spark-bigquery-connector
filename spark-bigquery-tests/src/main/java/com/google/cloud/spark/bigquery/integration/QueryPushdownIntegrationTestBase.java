@@ -430,7 +430,7 @@ public class QueryPushdownIntegrationTestBase extends SparkBigQueryIntegrationTe
 
     df =
         spark.sql(
-            "SELECT num1, num2, num3 FROM numStructDF WHERE num3 > 2 AND num3 < 5 ORDER BY num3 LIMIT 5");
+            "SELECT num1 as n1, num2, num3 FROM numStructDF WHERE num3 > 2 AND num3 < 5 ORDER BY num3 LIMIT 5");
 
     // df.explain(true);
     // df.collect();
@@ -459,7 +459,7 @@ public class QueryPushdownIntegrationTestBase extends SparkBigQueryIntegrationTe
 
     df =
         spark.sql(
-            "SELECT str1, str2, str3 FROM numStructDF WHERE str1 > 'd' ORDER BY str1 LIMIT 5");
+            "SELECT str3 FROM numStructDF WHERE str1 > 'd' ORDER BY str1 LIMIT 5");
 
     // df.explain(true);
     //df.collect();
@@ -535,7 +535,10 @@ public class QueryPushdownIntegrationTestBase extends SparkBigQueryIntegrationTe
           "store",
           "web_page",
           "store_sales",
-          "store_returns"
+          "store_returns",
+            "reason",
+            "web_site",
+            "ship_mode"
         };
 
     Dataset<Row> df;
@@ -552,33 +555,373 @@ public class QueryPushdownIntegrationTestBase extends SparkBigQueryIntegrationTe
 
     df =
         spark.sql(
-            "select i_item_id,\n"
-                + "        ca_country,\n"
-                + "        ca_state,\n"
-                + "        ca_county,\n"
-                + "        avg( cast(cs_quantity as decimal(12,2))) agg1,\n"
-                + "        avg( cast(cs_list_price as decimal(12,2))) agg2,\n"
-                + "        avg( cast(cs_coupon_amt as decimal(12,2))) agg3,\n"
-                + "        avg( cast(cs_sales_price as decimal(12,2))) agg4,\n"
-                + "        avg( cast(cs_net_profit as decimal(12,2))) agg5,\n"
-                + "        avg( cast(c_birth_year as decimal(12,2))) agg6,\n"
-                + "        avg( cast(cd1.cd_dep_count as decimal(12,2))) agg7\n"
-                + " from catalog_sales, customer_demographics cd1,\n"
-                + "      customer_demographics cd2, customer, customer_address, date_dim, item\n"
-                + " where cs_sold_date_sk = d_date_sk and\n"
-                + "       cs_item_sk = i_item_sk and\n"
-                + "       cs_bill_cdemo_sk = cd1.cd_demo_sk and\n"
-                + "       cs_bill_customer_sk = c_customer_sk and\n"
-                + "       cd1.cd_gender = 'F' and\n"
-                + "       cd1.cd_education_status = 'Unknown' and\n"
-                + "       c_current_cdemo_sk = cd2.cd_demo_sk and\n"
-                + "       c_current_addr_sk = ca_address_sk and\n"
-                + "       c_birth_month in (1,6,8,9,12,2) and\n"
-                + "       d_year = 1998 and\n"
-                + "       ca_state  in ('MS','IN','ND','OK','NM','VA','MS')\n"
-                + " group by rollup (i_item_id, ca_country, ca_state, ca_county)\n"
-                + " order by ca_country, ca_state, ca_county, i_item_id\n"
-                + " LIMIT 100");
+            "select 'web' as channel, web.item, web.return_ratio, web.return_rank, web.currency_rank\n"
+                + " from (\n"
+                + " \tselect\n"
+                + "    item, return_ratio, currency_ratio,\n"
+                + " \t  rank() over (order by return_ratio) as return_rank,\n"
+                + " \t  rank() over (order by currency_ratio) as currency_rank\n"
+                + " \tfrom\n"
+                + " \t(\tselect ws.ws_item_sk as item\n"
+                + " \t\t,(cast(sum(coalesce(wr.wr_return_quantity,0)) as decimal(15,4))/\n"
+                + " \t\tcast(sum(coalesce(ws.ws_quantity,0)) as decimal(15,4) )) as return_ratio\n"
+                + " \t\t,(cast(sum(coalesce(wr.wr_return_amt,0)) as decimal(15,4))/\n"
+                + " \t\tcast(sum(coalesce(ws.ws_net_paid,0)) as decimal(15,4) )) as currency_ratio\n"
+                + " \t\tfrom\n"
+                + " \t\t web_sales ws left outer join web_returns wr\n"
+                + " \t\t\ton (ws.ws_order_number = wr.wr_order_number and\n"
+                + " \t\t\tws.ws_item_sk = wr.wr_item_sk)\n"
+                + "        ,date_dim\n"
+                + " \t\twhere\n"
+                + " \t\t\twr.wr_return_amt > 10000\n"
+                + " \t\t\tand ws.ws_net_profit > 1\n"
+                + "                         and ws.ws_net_paid > 0\n"
+                + "                         and ws.ws_quantity > 0\n"
+                + "                         and ws_sold_date_sk = d_date_sk\n"
+                + "                         and d_year = 2001\n"
+                + "                         and d_moy = 12\n"
+                + " \t\tgroup by ws.ws_item_sk\n"
+                + " \t) in_web\n"
+                + " ) web\n"
+                + " where (web.return_rank <= 10 or web.currency_rank <= 10)\n"
+                + " union\n"
+                + " select\n"
+                + "    'catalog' as channel, catalog.item, catalog.return_ratio,\n"
+                + "    catalog.return_rank, catalog.currency_rank\n"
+                + " from (\n"
+                + " \tselect\n"
+                + "    item, return_ratio, currency_ratio,\n"
+                + " \t  rank() over (order by return_ratio) as return_rank,\n"
+                + " \t  rank() over (order by currency_ratio) as currency_rank\n"
+                + " \tfrom\n"
+                + " \t(\tselect\n"
+                + " \t\tcs.cs_item_sk as item\n"
+                + " \t\t,(cast(sum(coalesce(cr.cr_return_quantity,0)) as decimal(15,4))/\n"
+                + " \t\tcast(sum(coalesce(cs.cs_quantity,0)) as decimal(15,4) )) as return_ratio\n"
+                + " \t\t,(cast(sum(coalesce(cr.cr_return_amount,0)) as decimal(15,4))/\n"
+                + " \t\tcast(sum(coalesce(cs.cs_net_paid,0)) as decimal(15,4) )) as currency_ratio\n"
+                + " \t\tfrom\n"
+                + " \t\tcatalog_sales cs left outer join catalog_returns cr\n"
+                + " \t\t\ton (cs.cs_order_number = cr.cr_order_number and\n"
+                + " \t\t\tcs.cs_item_sk = cr.cr_item_sk)\n"
+                + "                ,date_dim\n"
+                + " \t\twhere\n"
+                + " \t\t\tcr.cr_return_amount > 10000\n"
+                + " \t\t\tand cs.cs_net_profit > 1\n"
+                + "                         and cs.cs_net_paid > 0\n"
+                + "                         and cs.cs_quantity > 0\n"
+                + "                         and cs_sold_date_sk = d_date_sk\n"
+                + "                         and d_year = 2001\n"
+                + "                         and d_moy = 12\n"
+                + "                 group by cs.cs_item_sk\n"
+                + " \t) in_cat\n"
+                + " ) catalog\n"
+                + " where (catalog.return_rank <= 10 or catalog.currency_rank <=10)\n"
+                + " union\n"
+                + " select\n"
+                + "    'store' as channel, store.item, store.return_ratio,\n"
+                + "    store.return_rank, store.currency_rank\n"
+                + " from (\n"
+                + " \tselect\n"
+                + "      item, return_ratio, currency_ratio,\n"
+                + " \t    rank() over (order by return_ratio) as return_rank,\n"
+                + " \t    rank() over (order by currency_ratio) as currency_rank\n"
+                + " \tfrom\n"
+                + " \t(\tselect sts.ss_item_sk as item\n"
+                + " \t\t,(cast(sum(coalesce(sr.sr_return_quantity,0)) as decimal(15,4))/\n"
+                + "               cast(sum(coalesce(sts.ss_quantity,0)) as decimal(15,4) )) as return_ratio\n"
+                + " \t\t,(cast(sum(coalesce(sr.sr_return_amt,0)) as decimal(15,4))/\n"
+                + "               cast(sum(coalesce(sts.ss_net_paid,0)) as decimal(15,4) )) as currency_ratio\n"
+                + " \t\tfrom\n"
+                + " \t\tstore_sales sts left outer join store_returns sr\n"
+                + " \t\t\ton (sts.ss_ticket_number = sr.sr_ticket_number and sts.ss_item_sk = sr.sr_item_sk)\n"
+                + "                ,date_dim\n"
+                + " \t\twhere\n"
+                + " \t\t\tsr.sr_return_amt > 10000\n"
+                + " \t\t\tand sts.ss_net_profit > 1\n"
+                + "                         and sts.ss_net_paid > 0\n"
+                + "                         and sts.ss_quantity > 0\n"
+                + "                         and ss_sold_date_sk = d_date_sk\n"
+                + "                         and d_year = 2001\n"
+                + "                         and d_moy = 12\n"
+                + " \t\tgroup by sts.ss_item_sk\n"
+                + " \t) in_store\n"
+                + " ) store\n"
+                + " where (store.return_rank <= 10 or store.currency_rank <= 10)\n"
+                + " order by 1,4,5\n"
+                + " limit 100");
+
+    // df.limit(10);
+    // df.show();
+
+    // df.sort("dt.d_year", "sum_agg", "brand_id").show(10);
+    df.show();
+  }
+
+  @Test
+  public void testTpcDsQ13() {
+    String[] tables =
+        new String[] {
+            "catalog_sales",
+            "catalog_returns",
+            "date_dim",
+            "time_dim",
+            "customer",
+            "customer_address",
+            "customer_demographics",
+            "household_demographics",
+            "income_band",
+            "household_demographics",
+            "income_band",
+            "inventory",
+            "item",
+            "promotion",
+            "warehouse",
+            "web_sales",
+            "web_returns",
+            "store",
+            "web_page",
+            "store_sales",
+            "store_returns",
+            "reason",
+            "web_site",
+            "ship_mode"
+        };
+
+    Dataset<Row> df;
+    for (String table : tables) {
+      df =
+          spark
+              .read()
+              .format("bigquery")
+              .option("table", "tpcds_1T." + table)
+              .option("materializationDataset", testDataset.toString())
+              .load();
+      df.createOrReplaceTempView(table);
+    }
+
+    df =
+        spark.sql(
+            "SELECT Avg(ss_quantity), \n"
+                + "       Avg(ss_ext_sales_price), \n"
+                + "       Avg(ss_ext_wholesale_cost), \n"
+                + "       Sum(ss_ext_wholesale_cost) \n"
+                + "FROM   store_sales, \n"
+                + "       store, \n"
+                + "       customer_demographics, \n"
+                + "       household_demographics, \n"
+                + "       customer_address, \n"
+                + "       date_dim \n"
+                + "WHERE  s_store_sk = ss_store_sk \n"
+                + "       AND ss_sold_date_sk = d_date_sk \n"
+                + "       AND d_year = 2001 \n"
+                + "       AND ( ( ss_hdemo_sk = hd_demo_sk \n"
+                + "               AND cd_demo_sk = ss_cdemo_sk \n"
+                + "               AND cd_marital_status = 'U' \n"
+                + "               AND cd_education_status = 'Advanced Degree' \n"
+                + "               AND ss_sales_price BETWEEN 100.00 AND 150.00 \n"
+                + "               AND hd_dep_count = 3 ) \n"
+                + "              OR ( ss_hdemo_sk = hd_demo_sk \n"
+                + "                   AND cd_demo_sk = ss_cdemo_sk \n"
+                + "                   AND cd_marital_status = 'M' \n"
+                + "                   AND cd_education_status = 'Primary' \n"
+                + "                   AND ss_sales_price BETWEEN 50.00 AND 100.00 \n"
+                + "                   AND hd_dep_count = 1 ) \n"
+                + "              OR ( ss_hdemo_sk = hd_demo_sk \n"
+                + "                   AND cd_demo_sk = ss_cdemo_sk \n"
+                + "                   AND cd_marital_status = 'D' \n"
+                + "                   AND cd_education_status = 'Secondary' \n"
+                + "                   AND ss_sales_price BETWEEN 150.00 AND 200.00 \n"
+                + "                   AND hd_dep_count = 1 ) ) \n"
+                + "       AND ( ( ss_addr_sk = ca_address_sk \n"
+                + "               AND ca_country = 'United States' \n"
+                + "               AND ca_state IN ( 'AZ', 'NE', 'IA' ) \n"
+                + "               AND ss_net_profit BETWEEN 100 AND 200 ) \n"
+                + "              OR ( ss_addr_sk = ca_address_sk \n"
+                + "                   AND ca_country = 'United States' \n"
+                + "                   AND ca_state IN ( 'MS', 'CA', 'NV' ) \n"
+                + "                   AND ss_net_profit BETWEEN 150 AND 300 ) \n"
+                + "              OR ( ss_addr_sk = ca_address_sk \n"
+                + "                   AND ca_country = 'United States' \n"
+                + "                   AND ca_state IN ( 'GA', 'TX', 'NJ' ) \n"
+                + "                   AND ss_net_profit BETWEEN 50 AND 250 ) )");
+
+    // df.limit(10);
+    // df.show();
+
+    // df.sort("dt.d_year", "sum_agg", "brand_id").show(10);
+    df.show();
+  }
+
+  @Test
+  public void testTpcDsQ27() {
+    String[] tables =
+        new String[] {
+            "catalog_sales",
+            "catalog_returns",
+            "date_dim",
+            "time_dim",
+            "customer",
+            "customer_address",
+            "customer_demographics",
+            "household_demographics",
+            "income_band",
+            "household_demographics",
+            "income_band",
+            "inventory",
+            "item",
+            "promotion",
+            "warehouse",
+            "web_sales",
+            "web_returns",
+            "store",
+            "web_page",
+            "store_sales",
+            "store_returns",
+            "reason",
+            "web_site",
+            "ship_mode"
+        };
+
+    Dataset<Row> df;
+    for (String table : tables) {
+      df =
+          spark
+              .read()
+              .format("bigquery")
+              .option("table", "tpcds_1T." + table)
+              .option("materializationDataset", testDataset.toString())
+              .load();
+      df.createOrReplaceTempView(table);
+    }
+
+    df =
+        spark.sql(
+            "SELECT i_item_id, \n"
+                + "               s_state, \n"
+                + "               Grouping(s_state)   g_state, \n"
+                + "               Avg(ss_quantity)    agg1, \n"
+                + "               Avg(ss_list_price)  agg2, \n"
+                + "               Avg(ss_coupon_amt)  agg3, \n"
+                + "               Avg(ss_sales_price) agg4 \n"
+                + "FROM   store_sales, \n"
+                + "       customer_demographics, \n"
+                + "       date_dim, \n"
+                + "       store, \n"
+                + "       item \n"
+                + "WHERE  ss_sold_date_sk = d_date_sk \n"
+                + "       AND ss_item_sk = i_item_sk \n"
+                + "       AND ss_store_sk = s_store_sk \n"
+                + "       AND ss_cdemo_sk = cd_demo_sk \n"
+                + "       AND cd_gender = 'M' \n"
+                + "       AND cd_marital_status = 'D' \n"
+                + "       AND cd_education_status = 'College' \n"
+                + "       AND d_year = 2000 \n"
+                + "       AND s_state IN ( 'TN', 'TN', 'TN', 'TN', \n"
+                + "                        'TN', 'TN' ) \n"
+                + "GROUP  BY rollup ( i_item_id, s_state ) \n"
+                + "ORDER  BY i_item_id, \n"
+                + "          s_state \n"
+                + "LIMIT 100");
+
+    // df.limit(10);
+    // df.show();
+
+    // df.sort("dt.d_year", "sum_agg", "brand_id").show(10);
+    df.show();
+  }
+
+  @Test
+  public void testTpcDsQ61() {
+    String[] tables =
+        new String[] {
+            "catalog_sales",
+            "catalog_returns",
+            "date_dim",
+            "time_dim",
+            "customer",
+            "customer_address",
+            "customer_demographics",
+            "household_demographics",
+            "income_band",
+            "household_demographics",
+            "income_band",
+            "inventory",
+            "item",
+            "promotion",
+            "warehouse",
+            "web_sales",
+            "web_returns",
+            "store",
+            "web_page",
+            "store_sales",
+            "store_returns",
+            "reason",
+            "web_site",
+            "ship_mode"
+        };
+
+    Dataset<Row> df;
+    for (String table : tables) {
+      df =
+          spark
+              .read()
+              .format("bigquery")
+              .option("table", "tpcds_1T." + table)
+              .option("materializationDataset", testDataset.toString())
+              .load();
+      df.createOrReplaceTempView(table);
+    }
+
+
+    df =
+        spark.sql(
+            "SELECT promotions, \n"
+                + "               total, \n"
+                + "               Cast(promotions AS DECIMAL(15, 4)) / \n"
+                + "               Cast(total AS DECIMAL(15, 4)) * 100 \n"
+                + "FROM   (SELECT Sum(ss_ext_sales_price) promotions \n"
+                + "        FROM   store_sales, \n"
+                + "               store, \n"
+                + "               promotion, \n"
+                + "               date_dim, \n"
+                + "               customer, \n"
+                + "               customer_address, \n"
+                + "               item \n"
+                + "        WHERE  ss_sold_date_sk = d_date_sk \n"
+                + "               AND ss_store_sk = s_store_sk \n"
+                + "               AND ss_promo_sk = p_promo_sk \n"
+                + "               AND ss_customer_sk = c_customer_sk \n"
+                + "               AND ca_address_sk = c_current_addr_sk \n"
+                + "               AND ss_item_sk = i_item_sk \n"
+                + "               AND ca_gmt_offset = -7 \n"
+                + "               AND i_category = 'Books' \n"
+                + "               AND ( p_channel_dmail = 'Y' \n"
+                + "                      OR p_channel_email = 'Y' \n"
+                + "                      OR p_channel_tv = 'Y' ) \n"
+                + "               AND s_gmt_offset = -7 \n"
+                + "               AND d_year = 2001 \n"
+                + "               AND d_moy = 12) promotional_sales, \n"
+                + "       (SELECT Sum(ss_ext_sales_price) total \n"
+                + "        FROM   store_sales, \n"
+                + "               store, \n"
+                + "               date_dim, \n"
+                + "               customer, \n"
+                + "               customer_address, \n"
+                + "               item \n"
+                + "        WHERE  ss_sold_date_sk = d_date_sk \n"
+                + "               AND ss_store_sk = s_store_sk \n"
+                + "               AND ss_customer_sk = c_customer_sk \n"
+                + "               AND ca_address_sk = c_current_addr_sk \n"
+                + "               AND ss_item_sk = i_item_sk \n"
+                + "               AND ca_gmt_offset = -7 \n"
+                + "               AND i_category = 'Books' \n"
+                + "               AND s_gmt_offset = -7 \n"
+                + "               AND d_year = 2001 \n"
+                + "               AND d_moy = 12) all_sales \n"
+                + "ORDER  BY promotions, \n"
+                + "          total\n"
+                + "LIMIT 100");
 
     // df.limit(10);
     // df.show();

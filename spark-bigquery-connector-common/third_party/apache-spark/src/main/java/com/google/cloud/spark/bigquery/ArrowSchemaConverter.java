@@ -396,6 +396,11 @@ public class ArrowSchemaConverter extends ColumnVector {
       if (isNullAt(rowId)) return null;
       return Decimal.apply(accessor.getObject(rowId), precision, scale);
     }
+
+    @Override
+    byte getByte(int rowId) {
+      return accessor.getObject(rowId).byteValueExact();
+    }
   }
 
   private static class Decimal256Accessor extends ArrowSchemaConverter.ArrowVectorAccessor {
@@ -414,6 +419,12 @@ public class ArrowSchemaConverter extends ColumnVector {
 
       BigDecimal bigDecimal = accessor.getObject(rowId);
       return UTF8String.fromString(bigDecimal.toPlainString());
+    }
+
+    @Override
+    final Decimal getDecimal(int rowId, int precision, int scale) {
+      if (isNullAt(rowId)) return null;
+      return Decimal.apply(accessor.getObject(rowId), precision, scale);
     }
   }
 

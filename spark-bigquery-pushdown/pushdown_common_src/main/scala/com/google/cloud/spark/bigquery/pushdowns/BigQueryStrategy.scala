@@ -22,7 +22,7 @@ import com.google.cloud.spark.bigquery.pushdowns.SparkBigQueryPushdownUtil.{conv
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.Strategy
 import org.apache.spark.sql.catalyst.analysis.NamedRelation
-import org.apache.spark.sql.catalyst.expressions.NamedExpression
+import org.apache.spark.sql.catalyst.expressions.{Alias, Cast, NamedExpression}
 import org.apache.spark.sql.catalyst.plans._
 import org.apache.spark.sql.catalyst.plans.logical._
 import org.apache.spark.sql.execution.datasources.LogicalRelation
@@ -138,7 +138,21 @@ abstract class BigQueryStrategy(expressionConverter: SparkExpressionConverter, e
   }
 
   def getTopMostProjectNode(plan: LogicalPlan): Option[Project] = {
-    plan.find(_.isInstanceOf[Project]).asInstanceOf[Option[Project]]
+    plan.foreach {
+      case _: Aggregate | _: Join | _: LogicalRelation | _:NamedRelation =>
+        return None
+      case projectNode@Project(projectList, _) =>
+        projectList.foreach {
+          case Alias(Cast(_, _, _), _) =>
+            return Some(projectNode)
+          case _ =>
+        }
+        return None
+
+      case _ =>
+    }
+
+    None
   }
 
   def getFinalProjectionColumns(plan: LogicalPlan): Seq[NamedExpression] = {
