@@ -55,36 +55,6 @@ class BigQueryStrategySuite extends AnyFunSuite with BeforeAndAfter {
     assert(returnedPlan == Nil)
   }
 
-  test("hasUnsupportedNodes with unsupported node") {
-    val unsupportedNode = Intersect(childPlan, childPlan, isAll = true)
-    val returnAnswerPlan = ReturnAnswer(unsupportedNode)
-
-    assert(new BigQueryStrategy(expressionConverter, expressionFactory, sparkPlanFactoryMock) {
-      override def generateQueryFromPlanForDataSourceV2(plan: LogicalPlan): Option[BigQuerySQLQuery] = None
-
-      override def createUnionQuery(children: Seq[LogicalPlan]): Option[BigQuerySQLQuery] = None
-    }.hasUnsupportedNodes(returnAnswerPlan))
-  }
-
-  test("hasUnsupportedNodes with supported nodes") {
-    when(directBigQueryRelationMock.schema).thenReturn(StructType.apply(Seq()))
-    when(directBigQueryRelationMock.getTableName).thenReturn("MY_BIGQUERY_TABLE")
-
-    val logicalRelation = LogicalRelation(directBigQueryRelationMock)
-
-    val filterPlan = Filter(EqualTo.apply(schoolIdAttributeReference, Literal(1234L)), logicalRelation)
-    val projectPlan = Project(Seq(schoolNameAttributeReference), filterPlan)
-    val sortPlan = Sort(Seq(SortOrder.apply(schoolIdAttributeReference, Ascending)), global = true, projectPlan)
-    val limitPlan = Limit(Literal(10), sortPlan)
-    val returnAnswerPlan = ReturnAnswer(limitPlan)
-
-    assert(!new BigQueryStrategy(expressionConverter, expressionFactory, sparkPlanFactoryMock) {
-      override def generateQueryFromPlanForDataSourceV2(plan: LogicalPlan): Option[BigQuerySQLQuery] = None
-
-      override def createUnionQuery(children: Seq[LogicalPlan]): Option[BigQuerySQLQuery] = None
-    }.hasUnsupportedNodes(returnAnswerPlan))
-  }
-
   test("generateQueryFromPlan with filter, project, limit and sort plans") {
     when(directBigQueryRelationMock.schema).thenReturn(StructType.apply(Seq()))
     when(directBigQueryRelationMock.getTableName).thenReturn("MY_BIGQUERY_TABLE")

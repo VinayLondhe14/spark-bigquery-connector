@@ -52,12 +52,6 @@ abstract class BigQueryStrategy(expressionConverter: SparkExpressionConverter, e
    *         query generation was successful, None if not.
    */
   override def apply(plan: LogicalPlan): Seq[SparkPlan] = {
-    // Check if we have any unsupported nodes in the plan. If we do, we return
-    // Nil and let Spark try other strategies
-    if(hasUnsupportedNodes(plan)) {
-      return Nil
-    }
-
     try {
       generateSparkPlanFromLogicalPlan(plan)
     } catch {
@@ -65,26 +59,9 @@ abstract class BigQueryStrategy(expressionConverter: SparkExpressionConverter, e
       // and return Nil because if we are not able to translate the plan, then
       // we let Spark handle it
       case e: Exception =>
-        logInfo("Query pushdown failed: ", e)
+        logDebug("Query pushdown failed: ", e)
         Nil
     }
-  }
-
-  def hasUnsupportedNodes(plan: LogicalPlan): Boolean = {
-    plan.foreach {
-      case UnaryOperationExtractor(_) | BinaryOperationExtractor(_, _)  | UnionOperationExtractor(_) =>
-
-      // NamedRelation is the superclass of DataSourceV2Relation and DataSourceV2ScanRelation.
-      // DataSourceV2Relation is the Spark 2.4 DSv2 connector relation and
-      // DataSourceV2ScanRelation is the Spark 3.1 DSv2 connector relation
-      case _: LogicalRelation | _: NamedRelation | _: Expand =>
-
-      case subPlan =>
-        logInfo(s"LogicalPlan has unsupported node for query pushdown : ${subPlan.nodeName} in ${subPlan.getClass.getName}")
-        return true
-    }
-
-    false
   }
 
   def generateSparkPlanFromLogicalPlan(plan: LogicalPlan): Seq[SparkPlan] = {
