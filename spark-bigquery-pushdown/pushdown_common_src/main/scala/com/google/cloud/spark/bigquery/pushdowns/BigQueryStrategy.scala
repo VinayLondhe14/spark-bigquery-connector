@@ -65,7 +65,7 @@ abstract class BigQueryStrategy(expressionConverter: SparkExpressionConverter, e
       // and return Nil because if we are not able to translate the plan, then
       // we let Spark handle it
       case e: Exception =>
-        logDebug("Query pushdown failed: ", e)
+        logWarning("Query pushdown failed: ", e)
         Nil
     }
   }

@@ -65,4 +65,11 @@ class Spark24ExpressionConverter(expressionFactory: SparkExpressionFactory, spar
         convertStatement(left, fields) + "LIKE" + convertStatement(right, fields)
     }
   }
+
+  override def convertIntervalAddingExpression(expression: Expression, fields: Seq[Attribute]): BigQuerySQLStatement = {
+    expression match {
+      case Like(left, right) =>
+        convertStatement(left, fields) + "LIKE" + convertStatement(right, fields)
+    }
+  }
 }

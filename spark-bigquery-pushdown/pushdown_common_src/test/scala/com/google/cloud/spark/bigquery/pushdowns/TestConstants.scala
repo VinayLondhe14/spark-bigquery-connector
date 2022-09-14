@@ -49,6 +49,11 @@ object TestConstants {
          throw new UnsupportedOperationException("Like expression is supported " +
            "only from Spark version specific implementations of SparkExpressionConverter")
       }
+
+      override def convertIntervalAddingExpression(expression: Expression, fields: Seq[Attribute]): BigQuerySQLStatement = {
+         throw new UnsupportedOperationException("Interval adding expressions are supported " +
+           "only from Spark version specific implementations of SparkExpressionConverter")
+      }
    }
 
    @Mock

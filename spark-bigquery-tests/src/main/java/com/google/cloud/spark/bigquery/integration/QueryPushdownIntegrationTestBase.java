@@ -51,6 +51,7 @@ public class QueryPushdownIntegrationTestBase extends SparkBigQueryIntegrationTe
                 "SOUNDEX(word) as soundex",
                 "LIKE(word, '%aug%urs%') as like_with_percent",
                 "LIKE(word, 'a_g_rs') as like_with_underscore",
+                "LIKE(word, 'b_g_rs') as like_with_underscore_return_false",
                 "LIKE(word, 'b_g_rs') as like_with_underscore_return_false")
             .where("word = 'augurs'");
     List<Row> result = df.collectAsList();
@@ -137,8 +138,10 @@ public class QueryPushdownIntegrationTestBase extends SparkBigQueryIntegrationTe
             .sql(
                 "SELECT "
                     + "word_count & corpus_date, "
+                    + "binary(word_count), "
                     + "word_count | corpus_date, "
                     + "word_count ^ corpus_date, "
+                    + "word_count || corpus_date, "
                     + "~ word_count, "
                     + "word <=> corpus "
                     + "FROM shakespeare "
@@ -236,6 +239,7 @@ public class QueryPushdownIntegrationTestBase extends SparkBigQueryIntegrationTe
                 "COALESCE(NULL, NULL, NULL, word, NULL, 'Push', 'Down') as Coalesce",
                 "IF(word_count = 10 and word = 'glass', 'working', 'not working') AS IfCondition",
                 "-(word_count) AS UnaryMinus",
+                "word_count ||  AS UnaryMinus",
                 "CAST(word_count + 1.99 as DECIMAL(17, 2)) / CAST(word_count + 2.99 as DECIMAL(17, 1)) < 0.9")
             .where("word_count = 10 and word = 'glass'")
             .orderBy("word_count");
@@ -1089,5 +1093,84 @@ public class QueryPushdownIntegrationTestBase extends SparkBigQueryIntegrationTe
         .format("bigquery")
         .option("materializationDataset", testDataset.toString())
         .load(table);
+  }
+
+  @Test
+  public void testTpcDs() {
+    String[] tables =
+        new String[] {
+            "catalog_sales",
+            "catalog_returns",
+            "date_dim",
+            "time_dim",
+            "customer",
+            "customer_address",
+            "customer_demographics",
+            "household_demographics",
+            "income_band",
+            "household_demographics",
+            "income_band",
+            "inventory",
+            "item",
+            "promotion",
+            "warehouse",
+            "web_sales",
+            "web_returns",
+            "store",
+            "web_page",
+            "store_sales",
+            "store_returns",
+            "reason",
+            "web_site",
+            "ship_mode"
+        };
+
+    Dataset<Row> df;
+    for (String table : tables) {
+      df =
+          spark
+              .read()
+              .format("bigquery")
+              .option("table", "tpcds_1T." + table)
+              .option("materializationDataset", testDataset.toString())
+              .option("readDataFormat", "avro")
+              .load();
+      df.createOrReplaceTempView(table);
+    }
+
+    df =
+        spark.sql(
+            "select i_item_desc\n"
+                + "       ,w_warehouse_name\n"
+                + "       ,d1.d_week_seq\n"
+                + "       ,sum(case when p_promo_sk is null then 1 else 0 end) no_promo\n"
+                + "       ,sum(case when p_promo_sk is not null then 1 else 0 end) promo\n"
+                + "       ,count(*) total_cnt\n"
+                + " from catalog_sales\n"
+                + " join inventory on (cs_item_sk = inv_item_sk)\n"
+                + " join warehouse on (w_warehouse_sk=inv_warehouse_sk)\n"
+                + " join item on (i_item_sk = cs_item_sk)\n"
+                + " join customer_demographics on (cs_bill_cdemo_sk = cd_demo_sk)\n"
+                + " join household_demographics on (cs_bill_hdemo_sk = hd_demo_sk)\n"
+                + " join date_dim d1 on (cs_sold_date_sk = d1.d_date_sk)\n"
+                + " join date_dim d2 on (inv_date_sk = d2.d_date_sk)\n"
+                + " join date_dim d3 on (cs_ship_date_sk = d3.d_date_sk)\n"
+                + " left outer join promotion on (cs_promo_sk=p_promo_sk)\n"
+                + " left outer join catalog_returns on (cr_item_sk = cs_item_sk and cr_order_number = cs_order_number)\n"
+                + " where d1.d_week_seq = d2.d_week_seq\n"
+                + "   and inv_quantity_on_hand < cs_quantity\n"
+                + "   and d3.d_date > (cast(d1.d_date AS DATE) + interval '5' day)\n"
+                + "   and hd_buy_potential = '>10000'\n"
+                + "   and d1.d_year = 1999\n"
+                + "   and cd_marital_status = 'D'\n"
+                + " group by i_item_desc,w_warehouse_name,d1.d_week_seq\n"
+                + " order by total_cnt desc, i_item_desc, w_warehouse_name, d1.d_week_seq\n"
+                + " limit 100");
+
+    // df.limit(10);
+    // df.show();
+
+    // df.sort("dt.d_year", "sum_agg", "brand_id").show(10);
+    df.show();
   }
 }

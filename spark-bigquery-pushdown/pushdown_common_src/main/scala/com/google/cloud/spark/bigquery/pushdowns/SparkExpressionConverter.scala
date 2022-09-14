@@ -40,11 +40,11 @@ abstract class SparkExpressionConverter {
     convertAggregateExpressions(expression, fields)
       .orElse(convertBasicExpressions(expression, fields))
       .orElse(convertBooleanExpressions(expression, fields))
-      .orElse(convertDateExpressions(expression, fields))
+      .orElse(convertWindowExpressions(expression, fields))
       .orElse(convertMathematicalExpressions(expression, fields))
       .orElse(convertMiscellaneousExpressions(expression, fields))
       .orElse(convertStringExpressions(expression, fields))
-      .orElse(convertWindowExpressions(expression, fields))
+      .orElse(convertDateExpressions(expression, fields))
       .getOrElse(throw new BigQueryPushdownUnsupportedException((s"Pushdown unsupported for ${expression.prettyName}")))
   }
 
@@ -232,6 +232,8 @@ abstract class SparkExpressionConverter {
             convertStatement(date, fields) + s", ${format.toString()}"
           )
 
+      case _: TimeZoneAwareExpression =>
+        convertIntervalAddingExpression(expression, fields)
       case _ => null
     })
   }
@@ -488,6 +490,19 @@ abstract class SparkExpressionConverter {
     }.toSeq
   }
 
+  final def sparkIntervalTypeToBigQueryIntervalType(sparkIntervalType: String): String = {
+    sparkIntervalType.toLowerCase() match {
+      case "days" => "DAY"
+      case "weeks" => "WEEK"
+      case "months" => "MONTH"
+      case "years" => "YEAR"
+      case _ =>
+        throw new BigQueryPushdownUnsupportedException(
+          "Pushdown unsupported for interval type " + s"$sparkIntervalType"
+        )
+    }
+  }
+
   // For supporting Scalar Subquery, we need specific implementations of BigQueryStrategy
   def convertScalarSubqueryExpression(expression: Expression, fields: Seq[Attribute]): BigQuerySQLStatement
 
@@ -498,4 +513,6 @@ abstract class SparkExpressionConverter {
   def convertCastExpression(expression: Expression, fields: Seq[Attribute]): BigQuerySQLStatement
 
   def convertLikeExpression(expression: Expression, fields: Seq[Attribute]): BigQuerySQLStatement
+
+  def convertIntervalAddingExpression(expression: Expression, fields: Seq[Attribute]): BigQuerySQLStatement
 }

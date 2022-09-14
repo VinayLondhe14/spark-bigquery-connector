@@ -16,7 +16,7 @@
 
 package com.google.cloud.spark.bigquery.pushdowns
 import com.google.cloud.spark.bigquery.pushdowns.SparkBigQueryPushdownUtil.blockStatement
-import org.apache.spark.sql.catalyst.expressions.{Attribute, Cast, CheckOverflow, Expression, Like, ScalarSubquery, UnaryMinus}
+import org.apache.spark.sql.catalyst.expressions.{Attribute, Cast, CheckOverflow, DateAddInterval, Expression, Like, Literal, ScalarSubquery, UnaryMinus}
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 
 /**
@@ -62,6 +62,18 @@ class Spark31ExpressionConverter(expressionFactory: SparkExpressionFactory, spar
     expression match {
       case Like(left, right, _) =>
         convertStatement(left, fields) + "LIKE" + convertStatement(right, fields)
+    }
+  }
+
+  override def convertIntervalAddingExpression(expression: Expression, fields: Seq[Attribute]): BigQuerySQLStatement = {
+    expression match {
+      case DateAddInterval(start, interval, _, _) =>
+        val intervalSplit = interval.toString().split(" ")
+        ConstantString("DATE_ADD") +
+          blockStatement(
+            convertStatement(start, fields) + ", INTERVAL " +
+              convertStatement(Literal(intervalSplit(0)), fields) + sparkIntervalTypeToBigQueryIntervalType(intervalSplit(1))
+          )
     }
   }
 }
