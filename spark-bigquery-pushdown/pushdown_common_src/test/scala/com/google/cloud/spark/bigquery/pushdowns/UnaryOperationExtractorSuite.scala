@@ -83,8 +83,8 @@ class UnaryOperationExtractorSuite extends AnyFunSuite {
 
   def assertReturnedPlan(plan: Option[LogicalPlan]): Unit = {
     assert(plan.isDefined)
-    assert(plan.get.isInstanceOf[Range])
-    assert(plan.get == childPlan)
+    assert(plan.get.children.head.isInstanceOf[Range])
+    assert(plan.get.children.head == childPlan)
   }
 
 }

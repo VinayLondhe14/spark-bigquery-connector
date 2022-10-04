@@ -15,17 +15,14 @@
  */
 package com.google.cloud.spark.bigquery.pushdowns
 
-import org.apache.spark.sql.catalyst.plans.logical.{Aggregate, Filter, GlobalLimit, LocalLimit, LogicalPlan, Project, ReturnAnswer, Sort, UnaryNode, Window}
+import com.google.cloud.spark.bigquery.direct.BigQueryRDDFactory
+import org.apache.spark.sql.execution.SparkPlan
 
-/** Extractor for supported unary operations. */
-object UnaryOperationExtractor {
-
-  def unapply(node: LogicalPlan): Option[LogicalPlan] =
-    node match {
-      case _: Filter | _: Project | _: GlobalLimit | _: LocalLimit |
-           _: Aggregate | _: Sort | _: ReturnAnswer | _: Window =>
-        Some(node)
-
-      case _ => None
-    }
+class Spark32PlanFactory extends SparkPlanFactory {
+  /**
+   * Generate SparkPlan from the output and RDD of the translated query
+   */
+  override def createBigQueryPlan(queryRoot: BigQuerySQLQuery, bigQueryRDDFactory: BigQueryRDDFactory): Option[SparkPlan] = {
+    Some(Spark32BigQueryPushdownPlan(queryRoot.output, bigQueryRDDFactory.buildScanFromSQL(queryRoot.getStatement().toString)))
+  }
 }

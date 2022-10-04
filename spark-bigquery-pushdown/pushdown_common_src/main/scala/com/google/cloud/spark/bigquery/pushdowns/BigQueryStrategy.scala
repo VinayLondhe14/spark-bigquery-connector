@@ -72,7 +72,7 @@ abstract class BigQueryStrategy(expressionConverter: SparkExpressionConverter, e
 
   def hasUnsupportedNodes(plan: LogicalPlan): Boolean = {
     plan.foreach {
-      case UnaryOperationExtractor(_) | BinaryOperationExtractor(_, _)  | UnionOperationExtractor(_) =>
+      case UnaryOperationExtractor(_) | BinaryOperationExtractor(_)  | UnionOperationExtractor(_) =>
 
       // NamedRelation is the superclass of DataSourceV2Relation and DataSourceV2ScanRelation.
       // DataSourceV2Relation is the Spark 2.4 DSv2 connector relation and
@@ -224,8 +224,8 @@ abstract class BigQueryStrategy(expressionConverter: SparkExpressionConverter, e
       case l@LogicalRelation(bqRelation: DirectBigQueryRelation, _, _, _) =>
         Some(SourceQuery(expressionConverter, expressionFactory, bqRelation.getBigQueryRDDFactory, bqRelation.getTableName, l.output, alias.next))
 
-      case UnaryOperationExtractor(child) =>
-        generateQueryFromPlan(child) map { subQuery =>
+      case UnaryOperationExtractor(node) =>
+        generateQueryFromPlan(node.children.head) map { subQuery =>
           plan match {
             case Filter(condition, _) =>
               FilterQuery(expressionConverter, expressionFactory, Seq(condition), subQuery, alias.next)
@@ -259,9 +259,9 @@ abstract class BigQueryStrategy(expressionConverter: SparkExpressionConverter, e
           }
         }
 
-      case BinaryOperationExtractor(left, right) =>
-        generateQueryFromPlan(left).flatMap { l =>
-          generateQueryFromPlan(right) map { r =>
+      case BinaryOperationExtractor(node) =>
+        generateQueryFromPlan(node.children.head).flatMap { l =>
+          generateQueryFromPlan(node.children(1)) map { r =>
             plan match {
               case JoinExtractor(joinType, condition) =>
                 joinType match {
