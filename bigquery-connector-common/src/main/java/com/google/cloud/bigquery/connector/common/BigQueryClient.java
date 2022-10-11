@@ -437,15 +437,17 @@ public class BigQueryClient {
    * @param queryJobLabels the labels to insert on the query job
    * @return a reference to the table
    */
-  public TableInfo materializeQueryToTable(String querySql, int expirationTimeInMinutes, Map<String, String> queryJobLabels) {
+  public TableInfo materializeQueryToTable(
+      String querySql, int expirationTimeInMinutes, Map<String, String> queryJobLabels) {
     TableId destinationTableId = createDestinationTable(Optional.empty(), Optional.empty());
-    DestinationTableBuilder tableBuilder = new DestinationTableBuilder(
-        this,
-        querySql,
-        destinationTableId,
-        expirationTimeInMinutes,
-        jobConfigurationFactory,
-        queryJobLabels);
+    DestinationTableBuilder tableBuilder =
+        new DestinationTableBuilder(
+            this,
+            querySql,
+            destinationTableId,
+            expirationTimeInMinutes,
+            jobConfigurationFactory,
+            queryJobLabels);
 
     return materializeTable(querySql, tableBuilder);
   }
@@ -660,11 +662,12 @@ public class BigQueryClient {
 
     TableInfo createTableFromQuery() {
       log.debug("destinationTable is %s", destinationTable);
-      QueryJobConfiguration.Builder queryJobConfigurationBuilder = jobConfigurationFactory
-          .createQueryJobConfigurationBuilder(querySql)
-          .setDestinationTable(destinationTable);
+      QueryJobConfiguration.Builder queryJobConfigurationBuilder =
+          jobConfigurationFactory
+              .createQueryJobConfigurationBuilder(querySql)
+              .setDestinationTable(destinationTable);
 
-      if(!queryJobLabels.isEmpty()) {
+      if (!queryJobLabels.isEmpty()) {
         queryJobConfigurationBuilder.setLabels(queryJobLabels);
       }
 
